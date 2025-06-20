@@ -1,79 +1,36 @@
-
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Claim Your Order | Affordable.Garden</title>
-  <style>
-    body {
-      font-family: Arial, sans-serif;
-      background: #f0fff0;
-      color: #333;
-      text-align: center;
-      padding: 40px;
-    }
-    input {
-      padding: 10px;
-      width: 250px;
-      font-size: 16px;
-      margin: 10px 0;
-    }
-    button {
-      padding: 10px 20px;
-      font-size: 16px;
-      background-color: #6cbf6c;
-      border: none;
-      color: white;
-      cursor: pointer;
-      border-radius: 5px;
-    }
-    button:hover {
-      background-color: #57aa57;
-    }
-    img {
-      margin-top: 20px;
-      border-radius: 10px;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.2);
-    }
-    #result {
-      margin-top: 30px;
-    }
-  </style>
+  <title>Claim Your Order</title>
 </head>
-<body>
-  <h1>Claim Your Order</h1>
+<body style="text-align:center; padding-top: 100px; background-color: #e7ffe7;">
+  <h2>Claim Your Order</h2>
   <p>Enter your Roblox username to receive your purchased items.</p>
-  <input id="username" type="text" placeholder="Roblox Username" />
-  <br>
-  <button onclick="verifyUser()">Verify</button>
 
-  <div id="result"></div>
+  <form id="claimForm">
+    <input type="text" name="username" placeholder="Roblox Username" required />
+    <button type="submit" style="background-color: lightgreen;">Verify</button>
+  </form>
 
   <script>
-    async function verifyUser() {
-      const name = document.getElementById('username').value.trim();
-      if (!name) return alert("Please enter a Roblox username.");
+    document.getElementById("claimForm").addEventListener("submit", function(e) {
+      e.preventDefault();
+      const username = document.querySelector("input[name='username']").value;
 
-      const res = await fetch(`https://users.roblox.com/v1/usernames/users`, {
+      fetch("https://script.google.com/macros/s/AKfycbxGxpwpTlEyDLyXHlmC5A7A-EyuI0dbx2grtcZJ9NdRRUedtq_vRhGiT94Jf0nPQctw/exec", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ usernames: [name], excludeBannedUsers: true })
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded",
+        },
+        body: "username=" + encodeURIComponent(username),
+      }).then(() => {
+        alert("Claim submitted!");
+        document.getElementById("claimForm").reset();
+      }).catch((err) => {
+        alert("There was an error. Please try again.");
+        console.error(err);
       });
-
-      const data = await res.json();
-      const user = data.data[0];
-
-      if (!user) return alert("Username not found or banned.");
-
-      document.getElementById('result').innerHTML = `
-        <p>Welcome, <strong>${user.displayName}</strong>!</p>
-        <img src="https://www.roblox.com/headshot-thumbnail/image?userId=${user.id}&width=150&height=150&format=png" alt="Avatar" />
-        <p>✅ Your order is now being processed.<br>Join the VIP delivery server below:</p>
-        <a href="https://www.roblox.com/games/126884695634066/Grow-a-Garden?privateServerLinkCode=YOUR_CODE" target="_blank">
-          <button>Join Delivery Server</button>
-        </a>
-        <p style="margin-top: 20px;">Once you join, our bot <strong>@GardenDelivery</strong> will deliver your item automatically.</p>
-      `;
-    }
+    });
   </script>
 </body>
 </html>
