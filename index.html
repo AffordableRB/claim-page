@@ -1,128 +1,102 @@
+<!-- index.html -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Claim Your Order</title>
   <link href="https://fonts.googleapis.com/css2?family=Poppins&display=swap" rel="stylesheet">
   <style>
     body {
       font-family: 'Poppins', sans-serif;
-      background-color: #a8e6a3; /* lighter green */
+      background-color: #a3d9a5;
       display: flex;
       flex-direction: column;
       align-items: center;
       justify-content: center;
       height: 100vh;
       margin: 0;
-      color: #333;
+      color: #222;
     }
-
     h1 {
       margin-bottom: 10px;
     }
-
-    p {
-      margin-bottom: 30px;
-      text-align: center;
-    }
-
-    input {
+    input, button {
       padding: 12px;
-      font-size: 16px;
+      margin: 8px 0;
+      font-size: 1rem;
       width: 300px;
-      margin-bottom: 20px;
-      border-radius: 5px;
-      border: 1px solid #ccc;
-    }
-
-    button {
-      padding: 12px 24px;
-      font-size: 16px;
-      background-color: #388e3c;
-      color: white;
       border: none;
-      border-radius: 5px;
+      border-radius: 6px;
+    }
+    input {
+      background: #fff;
+    }
+    button {
+      background: #4caf50;
+      color: white;
       cursor: pointer;
-      margin-top: 10px;
     }
-
-    button:disabled {
-      background-color: #2e7d32;
-      cursor: not-allowed;
-    }
-
     .spinner {
-      display: none;
-      margin-top: 15px;
       border: 4px solid #f3f3f3;
-      border-top: 4px solid #4CAF50;
+      border-top: 4px solid #4caf50;
       border-radius: 50%;
       width: 30px;
       height: 30px;
       animation: spin 1s linear infinite;
+      margin: 10px auto;
+      display: none;
     }
-
+    .success {
+      color: #2e7d32;
+      margin-top: 12px;
+    }
     @keyframes spin {
       0% { transform: rotate(0deg); }
       100% { transform: rotate(360deg); }
-    }
-
-    #successMessage {
-      margin-top: 20px;
-      color: #2e7d32;
-      font-weight: bold;
-      display: none;
     }
   </style>
 </head>
 <body>
   <h1>Claim Your Order</h1>
   <p>Enter your Roblox username to receive your purchased items.</p>
-  <input type="text" id="username" placeholder="Roblox Username" />
-  <button onclick="submitForm()" id="submitBtn">Verify</button>
+  <input type="text" id="username" placeholder="Roblox Username" required />
+  <button id="submitBtn">Verify</button>
   <div class="spinner" id="spinner"></div>
-  <div id="successMessage">Success! Your order has been logged.</div>
+  <div class="success" id="successMsg"></div>
 
   <script>
-    function submitForm() {
+    const submitBtn = document.getElementById('submitBtn');
+    const spinner = document.getElementById('spinner');
+    const successMsg = document.getElementById('successMsg');
+
+    submitBtn.addEventListener('click', async () => {
       const username = document.getElementById('username').value.trim();
-      const spinner = document.getElementById('spinner');
-      const successMessage = document.getElementById('successMessage');
-      const submitBtn = document.getElementById('submitBtn');
+      if (!username) return alert('Please enter a username.');
 
-      if (!username) {
-        alert('Please enter your Roblox username.');
-        return;
-      }
-
-      submitBtn.disabled = true;
       spinner.style.display = 'block';
-      successMessage.style.display = 'none';
+      successMsg.textContent = '';
 
-      fetch("https://script.google.com/macros/s/AKfycbxGxpwpTlEyDLyXHlmC5A7A-EyuI0dbx2grtcZJ9NdRRUedtq_vRhGiT94Jf0nPQctw/exec", {
-        method: "POST",
-        body: new URLSearchParams({ username }),
-        headers: {
-          "Content-Type": "application/x-www-form-urlencoded"
-        }
-      })
-      .then(res => res.text())
-      .then(text => {
-        if (text.trim() === "OK") {
-          successMessage.style.display = 'block';
+      const formData = new FormData();
+      formData.append('username', username);
+
+      try {
+        const res = await fetch('https://script.google.com/macros/s/AKfycbxGxpwpTlEyDLyXHlmC5A7A-EyuI0dbx2grtcZJ9NdRRUedtq_vRhGiT94Jf0nPQctw/exec', {
+          method: 'POST',
+          body: formData
+        });
+        const text = await res.text();
+        if (text === 'OK') {
+          successMsg.textContent = 'Success! Your claim has been logged.';
         } else {
-          alert("There was an error. Please try again.");
+          alert('There was an error. Please try again.');
         }
-      })
-      .catch(() => {
-        alert("There was an error. Please try again.");
-      })
-      .finally(() => {
+      } catch (err) {
+        alert('There was an error. Please try again.');
+      } finally {
         spinner.style.display = 'none';
-        submitBtn.disabled = false;
-      });
-    }
+      }
+    });
   </script>
 </body>
 </html>
