@@ -1,121 +1,123 @@
 <!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-    <title>Claim Your Order</title>
-    <link href="https://fonts.googleapis.com/css2?family=Poppins&display=swap" rel="stylesheet">
-    <style>
-      body {
-        margin: 0;
-        font-family: 'Poppins', sans-serif;
-        background-color: #a6d6a6;
-        display: flex;
-        justify-content: center;
-        align-items: center;
-        height: 100vh;
-        flex-direction: column;
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Claim Your Order</title>
+  <style>
+    body {
+      margin: 0;
+      font-family: 'Segoe UI', sans-serif;
+      background-color: #aad8a4;
+      color: #222;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+    }
+
+    h1 {
+      font-size: 2rem;
+      margin-bottom: 10px;
+    }
+
+    p {
+      margin-bottom: 20px;
+    }
+
+    input {
+      padding: 12px;
+      width: 280px;
+      font-size: 1rem;
+      border: none;
+      border-radius: 4px;
+      margin-bottom: 10px;
+    }
+
+    button {
+      padding: 10px 20px;
+      font-size: 1rem;
+      background-color: #2d712f;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+
+    button:disabled {
+      background-color: #7ba67d;
+    }
+
+    .status {
+      margin-top: 15px;
+      font-weight: bold;
+    }
+
+    .error {
+      color: red;
+    }
+
+    .success {
+      color: green;
+    }
+
+    .brand {
+      margin-top: 8px;
+      font-size: 0.9rem;
+      color: #333;
+      font-weight: bold;
+    }
+  </style>
+</head>
+<body>
+  <h1>Claim Your Order</h1>
+  <p>Enter your Roblox username to receive your purchased items.</p>
+  <input type="text" id="username" placeholder="Roblox Username" />
+  <button id="submitBtn">Verify</button>
+  <div class="brand">from Affordable.Garden</div>
+  <div class="status" id="statusMessage"></div>
+
+  <script>
+    const btn = document.getElementById('submitBtn');
+    const status = document.getElementById('statusMessage');
+
+    btn.addEventListener('click', async () => {
+      const username = document.getElementById('username').value.trim();
+      status.textContent = '';
+      status.className = 'status';
+
+      if (!username) {
+        status.textContent = '⚠️ Please enter a username.';
+        status.classList.add('error');
+        return;
       }
 
-      h1 {
-        font-size: 2em;
-        margin-bottom: 10px;
-        color: #222;
-      }
+      btn.disabled = true;
+      btn.textContent = '🔁 Sending...';
 
-      p {
-        margin-bottom: 20px;
-        color: #333;
-      }
+      try {
+        const res = await fetch("https://script.google.com/macros/s/AKfycbxGxwpTlEyDLyXHImC5A7A-EyuI0dbx2grtcZJ9NdRRUedtq_vRhGiT94Jf0nPQctw/exec", {
+          method: 'POST',
+          body: new URLSearchParams({ username })
+        });
 
-      input {
-        padding: 10px;
-        width: 250px;
-        font-size: 16px;
-        margin-bottom: 10px;
-        border: 1px solid #ccc;
-        border-radius: 4px;
-      }
-
-      button {
-        padding: 10px 20px;
-        font-size: 16px;
-        background-color: #2e7d32;
-        color: white;
-        border: none;
-        border-radius: 4px;
-        cursor: pointer;
-      }
-
-      .spinner {
-        margin-top: 10px;
-        border: 4px solid #f3f3f3;
-        border-top: 4px solid #2e7d32;
-        border-radius: 50%;
-        width: 24px;
-        height: 24px;
-        animation: spin 1s linear infinite;
-        display: none;
-      }
-
-      @keyframes spin {
-        0% { transform: rotate(0deg); }
-        100% { transform: rotate(360deg); }
-      }
-
-      .success {
-        color: green;
-        margin-top: 15px;
-      }
-
-      .error {
-        color: red;
-        margin-top: 15px;
-      }
-    </style>
-  </head>
-  <body>
-    <h1>Claim Your Order</h1>
-    <p>Enter your Roblox username to receive your purchased items.</p>
-    <input type="text" id="username" placeholder="Roblox Username" />
-    <button onclick="submitForm()">Verify</button>
-    <div class="spinner" id="spinner"></div>
-    <div id="message"></div>
-
-    <script>
-      async function submitForm() {
-        const username = document.getElementById('username').value.trim();
-        const spinner = document.getElementById('spinner');
-        const message = document.getElementById('message');
-
-        if (!username) {
-          message.innerHTML = `<div class="error">⚠️ Please enter a username.</div>`;
-          return;
+        const text = await res.text();
+        if (text === "OK") {
+          status.textContent = '✅ Order Claimed Successfully!';
+          status.classList.add('success');
+        } else {
+          status.textContent = `⚠️ Something went wrong. Try again. (${text})`;
+          status.classList.add('error');
         }
-
-        spinner.style.display = 'inline-block';
-        message.innerHTML = '';
-
-        try {
-          const response = await fetch('https://script.google.com/macros/s/AKfycbxGxpwpTlEyDLyXHlmC5A7A-EyuI0dbx2grtcZJ9NdRRUedtq_vRhGiT94Jf0nPQctw/exec', {
-            method: 'POST',
-            body: new URLSearchParams({ username })
-          });
-
-          const text = await response.text();
-
-          if (text.trim().toLowerCase().includes("ok") || text.trim().toLowerCase().includes("success")) {
-            message.innerHTML = `<div class="success">✅ Order Claimed Successfully!</div>`;
-          } else {
-            message.innerHTML = `<div class="error">⚠️ Something went wrong. Try again. (${text})</div>`;
-          }
-
-        } catch (err) {
-          message.innerHTML = `<div class="error">⚠️ Network error. Please try again later.</div>`;
-        } finally {
-          spinner.style.display = 'none';
-        }
+      } catch (e) {
+        status.textContent = '⚠️ Network error. Try again later.';
+        status.classList.add('error');
       }
-    </script>
-  </body>
+
+      btn.disabled = false;
+      btn.textContent = 'Verify';
+    });
+  </script>
+</body>
 </html>
