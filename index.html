@@ -8,76 +8,109 @@
   <style>
     body {
       font-family: 'Poppins', sans-serif;
-      background-color: #76b473; /* slightly darker green */
-      color: #1b1b1b;
+      background-color: #98d8a7;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      margin: 0;
+    }
+    h1 {
+      margin-bottom: 10px;
+    }
+    p {
+      margin-top: 0;
+      margin-bottom: 20px;
       text-align: center;
-      margin: 0; padding: 0;
-      display: flex; flex-direction: column;
-      justify-content: center; height: 100vh;
     }
-    h1 { margin-bottom: .2em; }
-    form { max-width: 320px; margin: 0 auto; }
-    .input {
-      width: 100%; padding: .8em; margin: .6em 0;
-      border-radius: 6px; border: 1px solid #ccc;
-      font-size: 1em;
+    input {
+      padding: 12px;
+      font-size: 16px;
+      margin-bottom: 15px;
+      width: 300px;
+      border: none;
+      border-radius: 6px;
     }
-    .btn {
-      background: #4aaa39; color: #fff;
-      border: none; border-radius: 6px;
-      padding: .8em 1.6em; cursor: pointer;
-      font-size: 1.1em; font-weight: 600;
-      transition: background .2s;
+    button {
+      padding: 12px 30px;
+      font-size: 16px;
+      background-color: #4caf50;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
     }
-    .btn:hover { background: #3f8c31; }
     .spinner {
-      display: none; margin: 16px auto;
-      width: 40px; height: 40px;
-      border: 4px solid rgba(255,255,255,0.3);
-      border-top: 4px solid #fff;
+      border: 4px solid rgba(255, 255, 255, 0.3);
+      border-top: 4px solid #4caf50;
       border-radius: 50%;
+      width: 30px;
+      height: 30px;
       animation: spin 1s linear infinite;
+      margin: 10px auto;
+      display: none;
     }
-    @keyframes spin { to { transform: rotate(360deg); } }
-    .message {
-      margin-top: 16px; font-weight: 600;
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+    .success-message {
+      color: #155724;
+      background-color: #d4edda;
+      border: 1px solid #c3e6cb;
+      padding: 12px;
+      border-radius: 5px;
+      margin-top: 15px;
+      display: none;
+      max-width: 300px;
+      text-align: center;
     }
   </style>
 </head>
 <body>
   <h1>Claim Your Order</h1>
-  <p>Enter your Roblox username to receive your purchased item.</p>
-  <form id="claimForm">
-    <input name="username" placeholder="Roblox Username" class="input" required>
-    <button type="submit" class="btn">Verify</button>
-  </form>
+  <p>Enter your Roblox username to receive your purchased items.</p>
+  <input type="text" id="username" placeholder="Roblox Username" />
+  <button onclick="submitForm()">Verify</button>
   <div class="spinner" id="spinner"></div>
-  <div class="message" id="msg"></div>
+  <div class="success-message" id="successMsg">Success! Your order was claimed.</div>
 
   <script>
-    const form = document.getElementById('claimForm');
-    const spinner = document.getElementById('spinner');
-    const msg = document.getElementById('msg');
-    const url = 'YOUR_GOOGLE_SCRIPT_WEB_APP_URL/exec';
+    function submitForm() {
+      const username = document.getElementById("username").value.trim();
+      const spinner = document.getElementById("spinner");
+      const successMsg = document.getElementById("successMsg");
 
-    form.addEventListener('submit', async e => {
-      e.preventDefault();
-      msg.textContent = '';
-      spinner.style.display = 'block';
-
-      const data = new URLSearchParams(new FormData(form));
-      try {
-        const res = await fetch(url, { method: 'POST', body: data });
-        const text = await res.text();
-        msg.textContent = '✅ Successfully submitted! Check your Roblox.';
-        form.reset();
-      } catch (err) {
-        msg.textContent = '❌ There was an error. Please try again.';
-        console.error(err);
-      } finally {
-        spinner.style.display = 'none';
+      if (!username) {
+        alert("Please enter your Roblox username.");
+        return;
       }
-    });
+
+      spinner.style.display = "block";
+      successMsg.style.display = "none";
+
+      fetch("https://script.google.com/macros/s/AKfycbxGxpwpTlEyDLyXHlmC5A7A-EyuI0dbx2grtcZJ9NdRRUedtq_vRhGiT94Jf0nPQctw/exec", {
+        method: "POST",
+        body: new URLSearchParams({ username }),
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded"
+        }
+      })
+      .then(response => response.text())
+      .then(result => {
+        spinner.style.display = "none";
+        if (result.includes("OK")) {
+          successMsg.style.display = "block";
+        } else {
+          alert("There was an error. Please try again.");
+        }
+      })
+      .catch(() => {
+        spinner.style.display = "none";
+        alert("There was an error. Please try again.");
+      });
+    }
   </script>
 </body>
 </html>
