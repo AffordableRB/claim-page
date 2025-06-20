@@ -3,70 +3,47 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Claim Your Order</title>
+  <title>Claim Page</title>
   <style>
     body {
-      margin: 0;
+      background-color: #add8a6;
       font-family: 'Segoe UI', sans-serif;
-      background-color: #aad8a4;
-      color: #222;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      height: 100vh;
+      text-align: center;
+      margin: 0;
+      padding: 0;
     }
-
     h1 {
-      font-size: 2rem;
-      margin-bottom: 10px;
+      color: #1a1a1a;
+      margin-top: 60px;
     }
-
     p {
-      margin-bottom: 20px;
+      color: #333;
     }
-
     input {
-      padding: 12px;
-      width: 280px;
-      font-size: 1rem;
+      padding: 10px;
+      width: 300px;
+      font-size: 16px;
       border: none;
       border-radius: 4px;
-      margin-bottom: 10px;
     }
-
     button {
       padding: 10px 20px;
-      font-size: 1rem;
-      background-color: #2d712f;
+      font-size: 16px;
+      background-color: #2e6f2e;
       color: white;
       border: none;
       border-radius: 4px;
       cursor: pointer;
+      margin-top: 10px;
     }
-
-    button:disabled {
-      background-color: #7ba67d;
-    }
-
-    .status {
-      margin-top: 15px;
+    #response {
+      margin-top: 20px;
       font-weight: bold;
     }
-
-    .error {
-      color: red;
-    }
-
-    .success {
-      color: green;
-    }
-
-    .brand {
-      margin-top: 8px;
-      font-size: 0.9rem;
+    .footer {
+      margin-top: 10px;
+      font-size: 14px;
       color: #333;
-      font-weight: bold;
     }
   </style>
 </head>
@@ -74,50 +51,47 @@
   <h1>Claim Your Order</h1>
   <p>Enter your Roblox username to receive your purchased items.</p>
   <input type="text" id="username" placeholder="Roblox Username" />
-  <button id="submitBtn">Verify</button>
-  <div class="brand">from Affordable.Garden</div>
-  <div class="status" id="statusMessage"></div>
+  <br />
+  <button onclick="submitForm()">Verify</button>
+
+  <div id="response"></div>
+  <div class="footer">from <strong>Affordable.Garden</strong></div>
 
   <script>
-    const btn = document.getElementById('submitBtn');
-    const status = document.getElementById('statusMessage');
-
-    btn.addEventListener('click', async () => {
-      const username = document.getElementById('username').value.trim();
-      status.textContent = '';
-      status.className = 'status';
+    async function submitForm() {
+      const username = document.getElementById("username").value.trim();
+      const responseDiv = document.getElementById("response");
+      responseDiv.textContent = "";
 
       if (!username) {
-        status.textContent = '⚠️ Please enter a username.';
-        status.classList.add('error');
+        responseDiv.style.color = "red";
+        responseDiv.textContent = "⚠ Please enter a username.";
         return;
       }
 
-      btn.disabled = true;
-      btn.textContent = '🔁 Sending...';
-
       try {
-        const res = await fetch("https://script.google.com/macros/s/AKfycbxGxwpTlEyDLyXHImC5A7A-EyuI0dbx2grtcZJ9NdRRUedtq_vRhGiT94Jf0nPQctw/exec", {
-          method: 'POST',
-          body: new URLSearchParams({ username })
+        const res = await fetch("https://script.google.com/macros/s/AKfycbxGxpwpTlEyDLyXHlmC5A7A-EyuI0dbx2grtcZJ9NdRRUedtq_vRhGiT94Jf0nPQctw/exec", {
+          method: "POST",
+          body: JSON.stringify({ username }),
+          headers: {
+            "Content-Type": "application/json",
+          },
         });
 
-        const text = await res.text();
-        if (text === "OK") {
-          status.textContent = '✅ Order Claimed Successfully!';
-          status.classList.add('success');
-        } else {
-          status.textContent = `⚠️ Something went wrong. Try again. (${text})`;
-          status.classList.add('error');
-        }
-      } catch (e) {
-        status.textContent = '⚠️ Network error. Try again later.';
-        status.classList.add('error');
-      }
+        const result = await res.json();
 
-      btn.disabled = false;
-      btn.textContent = 'Verify';
-    });
+        if (result.success) {
+          responseDiv.style.color = "green";
+          responseDiv.textContent = "✅ Order Claimed Successfully!";
+        } else {
+          responseDiv.style.color = "red";
+          responseDiv.textContent = `⚠ ${result.message || "Something went wrong. Try again."}`;
+        }
+      } catch (err) {
+        responseDiv.style.color = "red";
+        responseDiv.textContent = "⚠ Network error. Try again later.";
+      }
+    }
   </script>
 </body>
 </html>
