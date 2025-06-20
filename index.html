@@ -1,56 +1,65 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <title>Claim Your Order</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Claim Page</title>
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap" rel="stylesheet">
   <style>
     body {
-      background-color: #A6D8A8; /* lighter green */
       font-family: 'Poppins', sans-serif;
-      text-align: center;
-      padding-top: 100px;
+      background-color: #a2d5a2;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      margin: 0;
+      flex-direction: column;
+    }
+
+    h1 {
+      margin-bottom: 10px;
       color: #222;
     }
-    input {
-      font-family: 'Poppins', sans-serif;
-      padding: 12px;
-      margin: 10px;
-      border-radius: 5px;
-      border: 1px solid #ccc;
-      width: 250px;
-      font-size: 16px;
+
+    p {
+      margin-bottom: 20px;
+      color: #333;
     }
+
+    input {
+      padding: 10px;
+      font-size: 16px;
+      margin-bottom: 10px;
+      width: 250px;
+      border: 1px solid #ccc;
+      border-radius: 5px;
+    }
+
     button {
-      font-family: 'Poppins', sans-serif;
       padding: 10px 20px;
+      font-size: 16px;
+      background-color: #388e3c;
+      color: white;
       border: none;
       border-radius: 5px;
-      background-color: #2e7d32;
-      color: white;
-      font-size: 16px;
       cursor: pointer;
     }
-    button:disabled {
-      opacity: 0.6;
-      cursor: not-allowed;
-    }
+
     .spinner {
-      margin: 20px auto;
-      border: 4px solid #eee;
-      border-top: 4px solid #2e7d32;
-      border-radius: 50%;
-      width: 32px;
-      height: 32px;
-      animation: spin 1s linear infinite;
       display: none;
+      margin-top: 15px;
     }
-    @keyframes spin {
-      to { transform: rotate(360deg); }
+
+    .success {
+      margin-top: 15px;
+      color: green;
+      font-weight: bold;
     }
-    .success-message {
-      margin-top: 20px;
-      color: #2e7d32;
+
+    .error {
+      margin-top: 15px;
+      color: red;
       font-weight: bold;
     }
   </style>
@@ -58,24 +67,20 @@
 <body>
   <h1>Claim Your Order</h1>
   <p>Enter your Roblox username to receive your purchased items.</p>
-  <input id="username" type="text" placeholder="Roblox Username">
-  <br>
-  <button onclick="submitForm()" id="verifyBtn">Verify</button>
-  <div class="spinner" id="spinner"></div>
-  <div class="success-message" id="successMessage"></div>
+
+  <input type="text" id="username" placeholder="Roblox Username" />
+  <button onclick="submitForm()">Verify</button>
+
+  <div class="spinner" id="spinner">🔄 Sending...</div>
+  <div id="message"></div>
 
   <script>
     async function submitForm() {
-      const username = document.getElementById("username").value.trim();
-      const btn = document.getElementById("verifyBtn");
+      const username = document.getElementById("username").value;
       const spinner = document.getElementById("spinner");
-      const successMsg = document.getElementById("successMessage");
-
-      if (!username) return alert("Please enter your username.");
-
-      btn.disabled = true;
-      spinner.style.display = "inline-block";
-      successMsg.textContent = "";
+      const message = document.getElementById("message");
+      message.innerText = "";
+      spinner.style.display = "block";
 
       try {
         const res = await fetch("https://script.google.com/macros/s/AKfycbxGxpwpTlEyDLyXHlmC5A7A-EyuI0dbx2grtcZJ9NdRRUedtq_vRhGiT94Jf0nPQctw/exec", {
@@ -84,17 +89,18 @@
         });
 
         const text = await res.text();
-        if (text === "OK") {
-          successMsg.textContent = "Successfully logged your claim!";
-        } else {
-          alert("There was an error. Please try again.");
-        }
-      } catch (err) {
-        alert("There was an error. Please try again.");
-      }
+        spinner.style.display = "none";
 
-      btn.disabled = false;
-      spinner.style.display = "none";
+        if (text.trim() === "OK") {
+          message.innerHTML = `<div class="success">✅ Order Claimed Successfully!</div>`;
+        } else {
+          message.innerHTML = `<div class="error">⚠️ Something went wrong. Try again.</div>`;
+        }
+
+      } catch (err) {
+        spinner.style.display = "none";
+        message.innerHTML = `<div class="error">❌ Network error. Try again later.</div>`;
+      }
     }
   </script>
 </body>
