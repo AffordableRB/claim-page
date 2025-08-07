@@ -269,7 +269,7 @@
 
       try {
         // Call your backend API route
-        const response = await fetch('/api/verify', {
+        const response = await fetch('https://claim-page-one.vercel.app/api/verify', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ username }),
