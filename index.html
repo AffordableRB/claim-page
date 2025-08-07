@@ -1,380 +1,342 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Grow a Garden - Username Verification</title>
-    <style>
-        /* Your CSS stays the same */
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: linear-gradient(135deg, #4CAF50 0%, #2E7D32 100%);
-            min-height: 100vh;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            padding: 20px;
-        }
-        .container {
-            background: white;
-            padding: 40px;
-            border-radius: 20px;
-            box-shadow: 0 20px 40px rgba(0,0,0,0.15);
-            max-width: 450px;
-            width: 100%;
-            text-align: center;
-            animation: slideUp 0.6s ease-out;
-        }
-        @keyframes slideUp {
-            from {
-                opacity: 0;
-                transform: translateY(30px);
-            }
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
-        }
-        .logo {
-            width: 100px;
-            height: 100px;
-            background: linear-gradient(45deg, #4CAF50, #66BB6A);
-            border-radius: 50%;
-            margin: 0 auto 25px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 40px;
-            color: white;
-            box-shadow: 0 8px 20px rgba(76, 175, 80, 0.3);
-        }
-        h1 {
-            color: #333;
-            margin-bottom: 10px;
-            font-size: 32px;
-            font-weight: 700;
-        }
-        .subtitle {
-            color: #666;
-            margin-bottom: 35px;
-            font-size: 16px;
-        }
-        .step {
-            display: none;
-            animation: fadeIn 0.5s ease-in;
-        }
-        .step.active {
-            display: block;
-        }
-        @keyframes fadeIn {
-            from { opacity: 0; }
-            to { opacity: 1; }
-        }
-        .form-group {
-            margin-bottom: 25px;
-            text-align: left;
-        }
-        label {
-            display: block;
-            margin-bottom: 10px;
-            color: #333;
-            font-weight: 600;
-            font-size: 16px;
-        }
-        input {
-            width: 100%;
-            padding: 16px;
-            border: 2px solid #e0e0e0;
-            border-radius: 12px;
-            font-size: 16px;
-            transition: all 0.3s ease;
-            background: #fafafa;
-        }
-        input:focus {
-            outline: none;
-            border-color: #4CAF50;
-            box-shadow: 0 0 0 3px rgba(76, 175, 80, 0.1);
-            background: white;
-        }
-        .btn {
-            background: linear-gradient(45deg, #4CAF50, #66BB6A);
-            color: white;
-            border: none;
-            padding: 16px 32px;
-            border-radius: 12px;
-            font-size: 16px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            width: 100%;
-            margin-bottom: 15px;
-        }
-        .btn:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 12px 25px rgba(76, 175, 80, 0.4);
-        }
-        .btn:disabled {
-            background: #ccc;
-            cursor: not-allowed;
-            transform: none;
-            box-shadow: none;
-        }
-        .btn.secondary {
-            background: #f5f5f5;
-            color: #666;
-            border: 2px solid #e0e0e0;
-        }
-        .btn.secondary:hover {
-            background: #eeeeee;
-            box-shadow: 0 8px 20px rgba(0,0,0,0.1);
-        }
-        .profile-card {
-            background: #f8f9fa;
-            padding: 30px;
-            border-radius: 15px;
-            margin: 25px 0;
-            border: 2px solid #e9ecef;
-        }
-        .profile-avatar {
-            width: 120px;
-            height: 120px;
-            border-radius: 50%;
-            margin: 0 auto 20px;
-            border: 4px solid #4CAF50;
-            box-shadow: 0 8px 20px rgba(0,0,0,0.1);
-        }
-        .profile-name {
-            font-size: 24px;
-            font-weight: 700;
-            color: #333;
-            margin-bottom: 10px;
-        }
-        .profile-question {
-            font-size: 18px;
-            color: #555;
-            margin-bottom: 25px;
-        }
-        .loading {
-            display: inline-block;
-            width: 20px;
-            height: 20px;
-            border: 3px solid #f3f3f3;
-            border-top: 3px solid #4CAF50;
-            border-radius: 50%;
-            animation: spin 1s linear infinite;
-            margin-right: 10px;
-        }
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
-        .error-message {
-            background: #ffebee;
-            color: #c62828;
-            padding: 15px;
-            border-radius: 10px;
-            margin: 20px 0;
-            border-left: 4px solid #f44336;
-            text-align: left;
-        }
-        .success-message {
-            background: #e8f5e9;
-            color: #2e7d32;
-            padding: 15px;
-            border-radius: 10px;
-            margin: 20px 0;
-            border-left: 4px solid #4caf50;
-            text-align: left;
-        }
-        .note {
-            background: #fff3cd;
-            color: #856404;
-            padding: 15px;
-            border-radius: 10px;
-            margin-top: 20px;
-            font-size: 14px;
-            border-left: 4px solid #ffc107;
-        }
-    </style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Grow a Garden - Username Verification</title>
+  <style>
+    /* Same styles as before */
+    * {
+      margin: 0; padding: 0; box-sizing: border-box;
+    }
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: linear-gradient(135deg, #4CAF50 0%, #2E7D32 100%);
+      min-height: 100vh;
+      display: flex; align-items: center; justify-content: center;
+      padding: 20px;
+    }
+    .container {
+      background: white;
+      padding: 40px;
+      border-radius: 20px;
+      box-shadow: 0 20px 40px rgba(0,0,0,0.15);
+      max-width: 450px;
+      width: 100%;
+      text-align: center;
+      animation: slideUp 0.6s ease-out;
+    }
+    @keyframes slideUp {
+      from { opacity: 0; transform: translateY(30px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .logo {
+      width: 100px; height: 100px;
+      background: linear-gradient(45deg, #4CAF50, #66BB6A);
+      border-radius: 50%;
+      margin: 0 auto 25px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 40px; color: white;
+      box-shadow: 0 8px 20px rgba(76, 175, 80, 0.3);
+    }
+    h1 {
+      color: #333; margin-bottom: 10px;
+      font-size: 32px; font-weight: 700;
+    }
+    .subtitle {
+      color: #666; margin-bottom: 35px; font-size: 16px;
+    }
+    .step {
+      display: none; animation: fadeIn 0.5s ease-in;
+    }
+    .step.active { display: block; }
+    @keyframes fadeIn {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+    .form-group {
+      margin-bottom: 25px; text-align: left;
+    }
+    label {
+      display: block; margin-bottom: 10px;
+      color: #333; font-weight: 600; font-size: 16px;
+    }
+    input {
+      width: 100%; padding: 16px;
+      border: 2px solid #e0e0e0;
+      border-radius: 12px;
+      font-size: 16px;
+      transition: all 0.3s ease;
+      background: #fafafa;
+    }
+    input:focus {
+      outline: none;
+      border-color: #4CAF50;
+      box-shadow: 0 0 0 3px rgba(76, 175, 80, 0.1);
+      background: white;
+    }
+    .btn {
+      background: linear-gradient(45deg, #4CAF50, #66BB6A);
+      color: white; border: none;
+      padding: 16px 32px; border-radius: 12px;
+      font-size: 16px; font-weight: 600;
+      cursor: pointer; transition: all 0.3s ease;
+      width: 100%; margin-bottom: 15px;
+    }
+    .btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 12px 25px rgba(76, 175, 80, 0.4);
+    }
+    .btn:disabled {
+      background: #ccc; cursor: not-allowed;
+      transform: none; box-shadow: none;
+    }
+    .btn.secondary {
+      background: #f5f5f5; color: #666;
+      border: 2px solid #e0e0e0;
+    }
+    .btn.secondary:hover {
+      background: #eeeeee;
+      box-shadow: 0 8px 20px rgba(0,0,0,0.1);
+    }
+    .profile-card {
+      background: #f8f9fa; padding: 30px;
+      border-radius: 15px; margin: 25px 0;
+      border: 2px solid #e9ecef;
+    }
+    .profile-avatar {
+      width: 120px; height: 120px;
+      border-radius: 50%;
+      margin: 0 auto 20px;
+      border: 4px solid #4CAF50;
+      box-shadow: 0 8px 20px rgba(0,0,0,0.1);
+    }
+    .profile-name {
+      font-size: 24px; font-weight: 700;
+      color: #333; margin-bottom: 10px;
+    }
+    .profile-question {
+      font-size: 18px; color: #555;
+      margin-bottom: 25px;
+    }
+    .loading {
+      display: inline-block; width: 20px; height: 20px;
+      border: 3px solid #f3f3f3;
+      border-top: 3px solid #4CAF50;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+      margin-right: 10px;
+    }
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+    .error-message {
+      background: #ffebee;
+      color: #c62828;
+      padding: 15px;
+      border-radius: 10px;
+      margin: 20px 0;
+      border-left: 4px solid #f44336;
+      text-align: left;
+    }
+    .success-message {
+      background: #e8f5e9;
+      color: #2e7d32;
+      padding: 15px;
+      border-radius: 10px;
+      margin: 20px 0;
+      border-left: 4px solid #4caf50;
+      text-align: left;
+    }
+    .note {
+      background: #fff3cd;
+      color: #856404;
+      padding: 15px;
+      border-radius: 10px;
+      margin-top: 20px;
+      font-size: 14px;
+      border-left: 4px solid #ffc107;
+    }
+  </style>
 </head>
 <body>
-    <div class="container">
-        <div class="logo">🌱</div>
-        <h1>Grow a Garden</h1>
-        <p class="subtitle">Username Verification</p>
-        
-        <!-- Step 1: Enter Username -->
-        <div class="step active" id="step1">
-            <div class="form-group">
-                <label for="robloxUsername">Enter your Roblox Username:</label>
-                <input 
-                    type="text" 
-                    id="robloxUsername" 
-                    placeholder="YourRobloxUsername" 
-                    required
-                    autocomplete="off"
-                >
-            </div>
-            
-            <button class="btn" onclick="verifyUsername()" id="verifyBtn">
-                Verify Username
-            </button>
-            
-            <div class="note">
-                Make sure your username is spelled exactly right (case-sensitive)
-            </div>
-        </div>
-        
-        <!-- Step 2: Profile Confirmation -->
-        <div class="step" id="step2">
-            <div class="profile-card">
-                <img id="profileAvatar" class="profile-avatar" src="" alt="Profile Picture">
-                <div id="profileName" class="profile-name"></div>
-                <div class="profile-question">Is this you?</div>
-                
-                <button class="btn" onclick="confirmProfile()">
-                    Yes, that's me!
-                </button>
-                <button class="btn secondary" onclick="goBack()">
-                    No, try again
-                </button>
-            </div>
-        </div>
-        
-        <!-- Error/Success Messages -->
-        <div id="errorMessage" class="error-message" style="display: none;"></div>
-        <div id="successMessage" class="success-message" style="display: none;"></div>
+  <div class="container">
+    <div class="logo">🌱</div>
+    <h1>Grow a Garden</h1>
+    <p class="subtitle">Username Verification</p>
+
+    <!-- Step 1: Enter Username -->
+    <div class="step active" id="step1">
+      <div class="form-group">
+        <label for="robloxUsername">Enter your Roblox Username:</label>
+        <input
+          type="text"
+          id="robloxUsername"
+          placeholder="YourRobloxUsername"
+          required
+          autocomplete="off"
+        />
+      </div>
+
+      <button class="btn" onclick="verifyUsername()" id="verifyBtn">
+        Verify Username
+      </button>
+
+      <div class="note">
+        Make sure your username is spelled exactly right (case-sensitive)
+      </div>
     </div>
 
-    <script>
-        let currentUserData = null;
+    <!-- Step 2: Profile Confirmation -->
+    <div class="step" id="step2">
+      <div class="profile-card">
+        <img
+          id="profileAvatar"
+          class="profile-avatar"
+          src=""
+          alt="Profile Picture"
+        />
+        <div id="profileName" class="profile-name"></div>
+        <div class="profile-question">Is this you?</div>
 
-        function showStep(stepNumber) {
-            document.querySelectorAll('.step').forEach(step => step.classList.remove('active'));
-            document.getElementById('step' + stepNumber).classList.add('active');
-        }
+        <button class="btn" onclick="confirmProfile()">Yes, that's me!</button>
+        <button class="btn secondary" onclick="goBack()">No, try again</button>
+      </div>
+    </div>
 
-        function showError(message) {
-            const errorEl = document.getElementById('errorMessage');
-            errorEl.textContent = message;
-            errorEl.style.display = 'block';
-            setTimeout(() => {
-                errorEl.style.display = 'none';
-            }, 5000);
-        }
+    <!-- Error/Success Messages -->
+    <div
+      id="errorMessage"
+      class="error-message"
+      style="display: none"
+    ></div>
+    <div
+      id="successMessage"
+      class="success-message"
+      style="display: none"
+    ></div>
+  </div>
 
-        function showSuccess(message) {
-            const successEl = document.getElementById('successMessage');
-            successEl.textContent = message;
-            successEl.style.display = 'block';
-        }
+  <script>
+    let currentUserData = null;
 
-        async function verifyUsername() {
-            const username = document.getElementById('robloxUsername').value.trim();
-            const verifyBtn = document.getElementById('verifyBtn');
+    function showStep(stepNumber) {
+      document.querySelectorAll('.step').forEach((step) =>
+        step.classList.remove('active')
+      );
+      document.getElementById('step' + stepNumber).classList.add('active');
+    }
 
-            if (!username) {
-                showError('Please enter a username');
-                return;
-            }
+    function showError(message) {
+      const errorEl = document.getElementById('errorMessage');
+      errorEl.textContent = message;
+      errorEl.style.display = 'block';
+      setTimeout(() => {
+        errorEl.style.display = 'none';
+      }, 5000);
+    }
 
-            // Basic username validation
-            if (username.length < 3 || username.length > 20) {
-                showError('Username must be between 3-20 characters');
-                return;
-            }
+    function showSuccess(message) {
+      const successEl = document.getElementById('successMessage');
+      successEl.textContent = message;
+      successEl.style.display = 'block';
+    }
 
-            if (!/^[a-zA-Z0-9_]+$/.test(username)) {
-                showError('Username can only contain letters, numbers, and underscores');
-                return;
-            }
+    async function verifyUsername() {
+      const username = document.getElementById('robloxUsername').value.trim();
+      const verifyBtn = document.getElementById('verifyBtn');
 
-            // Show loading state
-            verifyBtn.innerHTML = '<span class="loading"></span>Verifying...';
-            verifyBtn.disabled = true;
+      if (!username) {
+        showError('Please enter a username');
+        return;
+      }
 
-            try {
-                // Step 1: Get UserId from Roblox API
-                const userIdResponse = await fetch(`https://api.roblox.com/users/get-by-username?username=${encodeURIComponent(username)}`);
-                const userIdData = await userIdResponse.json();
+      // Basic username validation
+      if (username.length < 3 || username.length > 20) {
+        showError('Username must be between 3-20 characters');
+        return;
+      }
 
-                if (!userIdData || userIdData.success === false) {
-                    showError('Username not found. Please check spelling and try again.');
-                    verifyBtn.innerHTML = 'Verify Username';
-                    verifyBtn.disabled = false;
-                    return;
-                }
+      if (!/^[a-zA-Z0-9_]+$/.test(username)) {
+        showError('Username can only contain letters, numbers, and underscores');
+        return;
+      }
 
-                const userId = userIdData.Id;
+      // Show loading state
+      verifyBtn.innerHTML = '<span class="loading"></span>Verifying...';
+      verifyBtn.disabled = true;
 
-                // Step 2: Construct avatar URL from UserId
-                const avatarUrl = `https://www.roblox.com/headshot-thumbnail/image?userId=${userId}&size=150x150&format=Png&isCircular=true`;
-
-                // Store user data and show confirmation
-                currentUserData = {
-                    username: username,
-                    avatar: avatarUrl,
-                    userId: userId
-                };
-
-                // Update profile display
-                const avatarImg = document.getElementById('profileAvatar');
-                avatarImg.src = currentUserData.avatar;
-                avatarImg.alt = `${username}'s Avatar`;
-
-                document.getElementById('profileName').textContent = currentUserData.username;
-
-                // Show confirmation step
-                showStep(2);
-            } catch (error) {
-                console.error('Verification error:', error);
-                showError('Unable to verify username. Please check spelling and try again.');
-            } finally {
-                verifyBtn.innerHTML = 'Verify Username';
-                verifyBtn.disabled = false;
-            }
-        }
-
-        function confirmProfile() {
-            if (!currentUserData) return;
-
-            showSuccess(`✅ Username verified: ${currentUserData.username}`);
-
-            // Here you would typically:
-            // 1. Save the verified username
-            // 2. Redirect to next step (like joining server)
-            // 3. Send data to your backend
-
-            console.log('Verified user data:', currentUserData);
-
-            // Example: redirect after 2 seconds
-            setTimeout(() => {
-                alert(`Welcome ${currentUserData.username}! Redirecting to server...`);
-                // window.location.href = '/join-server?user=' + currentUserData.userId;
-            }, 2000);
-        }
-
-        function goBack() {
-            currentUserData = null;
-            document.getElementById('robloxUsername').value = '';
-            showStep(1);
-
-            // Clear any messages
-            document.getElementById('errorMessage').style.display = 'none';
-            document.getElementById('successMessage').style.display = 'none';
-        }
-
-        // Allow Enter key to submit
-        document.getElementById('robloxUsername').addEventListener('keypress', function(e) {
-            if (e.key === 'Enter') {
-                verifyUsername();
-            }
+      try {
+        // Call your backend API route
+        const response = await fetch('/api/verify', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username }),
         });
-    </script>
+
+        const userData = await response.json();
+
+        if (!response.ok) {
+          showError(userData.error || 'Failed to verify username.');
+          verifyBtn.innerHTML = 'Verify Username';
+          verifyBtn.disabled = false;
+          return;
+        }
+
+        // Success: show profile confirmation
+        currentUserData = {
+          username: userData.username,
+          avatar: userData.avatarUrl,
+          userId: userData.userId,
+        };
+
+        // Update profile display
+        const avatarImg = document.getElementById('profileAvatar');
+        avatarImg.src = currentUserData.avatar;
+        avatarImg.alt = `${userData.username}'s Avatar`;
+
+        document.getElementById('profileName').textContent = currentUserData.username;
+
+        showStep(2);
+      } catch (error) {
+        console.error('Verification error:', error);
+        showError('Unable to verify username. Please try again later.');
+      } finally {
+        verifyBtn.innerHTML = 'Verify Username';
+        verifyBtn.disabled = false;
+      }
+    }
+
+    function confirmProfile() {
+      if (!currentUserData) return;
+
+      showSuccess(`✅ Username verified: ${currentUserData.username}`);
+
+      // You can save, redirect, or handle verified data here
+      console.log('Verified user data:', currentUserData);
+
+      setTimeout(() => {
+        alert(`Welcome ${currentUserData.username}! Redirecting to server...`);
+        // window.location.href = '/join-server?user=' + currentUserData.userId;
+      }, 2000);
+    }
+
+    function goBack() {
+      currentUserData = null;
+      document.getElementById('robloxUsername').value = '';
+      showStep(1);
+
+      document.getElementById('errorMessage').style.display = 'none';
+      document.getElementById('successMessage').style.display = 'none';
+    }
+
+    // Allow Enter key to submit
+    document.getElementById('robloxUsername').addEventListener('keypress', function (e) {
+      if (e.key === 'Enter') {
+        verifyUsername();
+      }
+    });
+  </script>
 </body>
 </html>
