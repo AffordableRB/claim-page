@@ -330,7 +330,7 @@
             try {
                 // For demo purposes, we'll generate a reliable placeholder avatar
                 // Using a different placeholder service that works better
-                const avatarUrl = https://ui-avatars.com/api/?name=${encodeURIComponent(username)}&background=4CAF50&color=fff&size=150&bold=true&format=png;
+                const avatarUrl = `https://ui-avatars.com/api/?name=${encodeURIComponent(username)}&background=4CAF50&color=fff&size=150&bold=true&format=png`;
                 
                 // Store user data and show confirmation
                 currentUserData = {
@@ -341,7 +341,7 @@
                 // Update profile display
                 const avatarImg = document.getElementById('profileAvatar');
                 avatarImg.src = currentUserData.avatar;
-                avatarImg.alt = ${username}'s Avatar;
+                avatarImg.alt = `${username}'s Avatar`;
                 
                 document.getElementById('profileName').textContent = currentUserData.username;
                 
@@ -361,7 +361,7 @@
         function confirmProfile() {
             if (!currentUserData) return;
             
-            showSuccess(✅ Username verified: ${currentUserData.username});
+            showSuccess(`✅ Username verified: ${currentUserData.username}`);
             
             // Here you would typically:
             // 1. Save the verified username
@@ -372,7 +372,7 @@
             
             // Example: redirect after 2 seconds
             setTimeout(() => {
-                alert(Welcome ${currentUserData.username}! Redirecting to server...);
+                alert(`Welcome ${currentUserData.username}! Redirecting to server...`);
                 // window.location.href = '/join-server?user=' + currentUserData.id;
             }, 2000);
         }
@@ -396,6 +396,3 @@
     </script>
 </body>
 </html>
-
-
-ChatGPT
