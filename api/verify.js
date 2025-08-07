@@ -14,56 +14,32 @@ export default async function handler(req, res) {
   }
 
   try {
-    console.log('Fetching Roblox user for username:', username);
+    const searchUrl = `https://www.roblox.com/search/users?keyword=${encodeURIComponent(username)}`;
+    const response = await fetch(searchUrl);
 
-    // Call Roblox API server-side
-    const userResponse = await fetch(`https://users.roblox.com/v1/users/get-by-username?username=${encodeURIComponent(username)}`);
-
-    if (!userResponse.ok) {
-      console.error('Failed fetching user:', userResponse.status, userResponse.statusText);
-      return res.status(500).json({ error: 'Failed fetching user data from Roblox' });
+    if (!response.ok) {
+      return res.status(500).json({ error: 'Failed to fetch Roblox search page' });
     }
 
-    const userData = await userResponse.json();
+    const html = await response.text();
 
-    console.log('Roblox user data:', userData);
+    // Simple regex to extract first user info (adjust selectors if Roblox changes site)
+    const userIdMatch = html.match(/\/users\/(\d+)\/profile/);
+    const avatarMatch = html.match(/search-user-item-thumb[^>]*>\s*<img src="([^"]+)"/);
+    const usernameMatch = html.match(/search-user-item-name[^>]*>\s*<a[^>]*>([^<]+)<\/a>/);
 
-    if (userData.errors) {
-      console.error('User not found:', userData.errors);
-      return res.status(404).json({ error: 'User not found' });
+    if (!userIdMatch || !avatarMatch || !usernameMatch) {
+      return res.status(404).json({ error: 'User not found or page structure changed' });
     }
 
-    // Get avatar headshot URL
-    const userId = userData.id;
-    console.log('Fetching avatar for userId:', userId);
+    const userId = userIdMatch[1];
+    const avatarUrl = avatarMatch[1];
+    const foundUsername = usernameMatch[1];
 
-    const avatarResponse = await fetch(`https://thumbnails.roblox.com/v1/users/avatar-headshot?userIds=${userId}&size=150x150&format=Png&isCircular=true`);
-
-    if (!avatarResponse.ok) {
-      console.error('Failed fetching avatar:', avatarResponse.status, avatarResponse.statusText);
-      return res.status(500).json({ error: 'Failed fetching avatar data from Roblox' });
-    }
-
-    const avatarData = await avatarResponse.json();
-
-    console.log('Roblox avatar data:', avatarData);
-
-    const avatarUrl = avatarData.data && avatarData.data[0] && avatarData.data[0].imageUrl;
-
-    if (!avatarUrl) {
-      console.error('Avatar URL missing in response');
-      return res.status(500).json({ error: 'Avatar not found' });
-    }
-
-    // Respond with username and avatar URL
-    res.status(200).json({
-      username: userData.name,
-      avatarUrl,
-      userId,
-    });
+    return res.status(200).json({ userId, avatarUrl, username: foundUsername });
 
   } catch (error) {
-    console.error('Internal Server Error:', error);
-    res.status(500).json({ error: 'Internal Server Error' });
+    console.error('Internal server error:', error);
+    return res.status(500).json({ error: 'Internal server error' });
   }
 }
