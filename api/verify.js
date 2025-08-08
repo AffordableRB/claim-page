@@ -1,3 +1,5 @@
+import crypto from 'crypto';
+
 export default async function handler(req, res) {
   // Set CORS headers
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -59,9 +61,8 @@ export default async function handler(req, res) {
   }
 }
 
-// MOCK order verification - replace with real Shopify integration later
 async function handleOrderVerification(req, res, orderNumber, email) {
-  console.log(`🔍 Mock Order Verification: ${orderNumber} for ${email}`);
+  console.log(`🔍 Shopify Order Verification: ${orderNumber} for ${email}`);
   
   // Input validation
   if (!orderNumber || !email) {
@@ -76,89 +77,207 @@ async function handleOrderVerification(req, res, orderNumber, email) {
   if (!emailRegex.test(cleanEmail)) {
     return res.status(400).json({ error: 'Invalid email format' });
   }
-  
-  // Mock test orders - customize these for your testing
-  const mockOrders = [
-    { 
-      orderNumber: '#1222', 
-      email: 'test@woo.com', 
-      items: 'Roblox Digital Items Pack',
-      customerName: 'John Doe',
-      total: '29.99',
-      currency: 'USD'
-    },
-    { 
-      orderNumber: '1222', 
-      email: 'test@woo.com', 
-      items: 'Roblox Digital Items Pack',
-      customerName: 'John Doe',
-      total: '29.99',
-      currency: 'USD'
-    },
-    { 
-      orderNumber: '#1001', 
-      email: 'customer@example.com', 
-      items: 'Virtual Accessories Bundle',
-      customerName: 'Jane Smith',
-      total: '19.99',
-      currency: 'USD'
-    },
-    { 
-      orderNumber: 'AF1234', 
-      email: 'user@gmail.com', 
-      items: 'Premium Game Items',
-      customerName: 'Mike Johnson',
-      total: '39.99',
-      currency: 'USD'
+
+  try {
+    // Check if we have required environment variables
+    if (!process.env.SHOPIFY_SHOP_DOMAIN || !process.env.SHOPIFY_ACCESS_TOKEN) {
+      console.error('Missing Shopify credentials');
+      return res.status(500).json({ error: 'Server configuration error' });
     }
-  ];
 
-  // Normalize order number for comparison (remove # if present)
-  const normalizedOrderNumber = cleanOrderNumber.replace(/^#/, '');
-
-  // Find matching order
-  const matchingOrder = mockOrders.find(order => {
-    const orderNum = order.orderNumber.replace(/^#/, '');
-    const emailMatch = order.email.toLowerCase() === cleanEmail;
-    const orderMatch = orderNum === normalizedOrderNumber;
+    // Search for the order in Shopify
+    const order = await findShopifyOrder(cleanOrderNumber, cleanEmail);
     
-    console.log(`Checking order ${order.orderNumber}:`, {
-      orderMatch,
-      emailMatch,
-      orderNum,
-      normalizedOrderNumber,
-      orderEmail: order.email.toLowerCase(),
-      cleanEmail
+    if (!order) {
+      console.log('❌ No matching order found');
+      return res.status(404).json({ 
+        error: 'Order not found or email does not match',
+        details: 'Please check your order number and email address'
+      });
+    }
+
+    // Verify order is valid for delivery
+    const validationResult = validateOrderForDelivery(order);
+    if (!validationResult.valid) {
+      return res.status(400).json({ 
+        error: validationResult.reason,
+        details: validationResult.details 
+      });
+    }
+
+    console.log('✅ Order verification successful:', order.name);
+
+    // Return successful verification
+    return res.status(200).json({
+      orderNumber: order.name,
+      email: cleanEmail,
+      orderId: order.id.toString(),
+      customerName: `${order.customer?.first_name || ''} ${order.customer?.last_name || ''}`.trim(),
+      items: formatOrderItems(order.line_items),
+      total: order.total_price,
+      currency: order.currency,
+      orderDate: order.created_at,
+      fulfilled: order.fulfillment_status === 'fulfilled',
+      verified: true,
+      source: 'shopify_api'
     });
-    
-    return orderMatch && emailMatch;
-  });
 
-  if (!matchingOrder) {
-    console.log('❌ No matching order found');
-    return res.status(404).json({ 
-      error: 'Order not found or email does not match',
-      details: 'Please check your order number and email address',
-      hint: 'Try: Order #1222 with email test@woo.com'
+  } catch (error) {
+    console.error('Shopify API error:', error);
+    return res.status(500).json({ 
+      error: 'Failed to verify order',
+      message: 'Please try again in a moment'
     });
   }
+}
 
-  console.log('✅ Order verification successful:', matchingOrder.orderNumber);
+async function findShopifyOrder(orderNumber, email) {
+  const shopDomain = process.env.SHOPIFY_SHOP_DOMAIN;
+  const accessToken = process.env.SHOPIFY_ACCESS_TOKEN;
+  const apiVersion = process.env.SHOPIFY_API_VERSION || '2024-01';
+  
+  // Shopify order numbers can have different formats
+  // They might be #1001, AF1001, or just 1001
+  const searchQueries = [
+    orderNumber,
+    orderNumber.replace(/^#/, ''), // Remove # if present
+    `#${orderNumber.replace(/^#/, '')}` // Add # if not present
+  ];
 
-  // Return successful verification
-  return res.status(200).json({
-    orderNumber: matchingOrder.orderNumber,
-    email: cleanEmail,
-    orderId: Math.floor(Math.random() * 100000).toString(),
-    customerName: matchingOrder.customerName,
-    items: matchingOrder.items,
-    total: matchingOrder.total,
-    currency: matchingOrder.currency,
-    orderDate: new Date().toISOString(),
-    fulfilled: true,
-    verified: true,
-    source: 'mock_system'
+  for (const query of searchQueries) {
+    try {
+      console.log(`Searching Shopify for order: ${query}`);
+      
+      // Method 1: Search by order name
+      const nameSearchUrl = `https://${shopDomain}/admin/api/${apiVersion}/orders.json?name=${encodeURIComponent(query)}&limit=1`;
+      
+      const response = await fetch(nameSearchUrl, {
+        headers: {
+          'X-Shopify-Access-Token': accessToken,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (!response.ok) {
+        console.error(`Shopify API error: ${response.status}`);
+        continue;
+      }
+
+      const data = await response.json();
+      
+      if (data.orders && data.orders.length > 0) {
+        const order = data.orders[0];
+        
+        // Verify email matches
+        if (order.email && order.email.toLowerCase() === email) {
+          console.log(`✅ Found matching order: ${order.name}`);
+          return order;
+        } else {
+          console.log(`❌ Order found but email doesn't match: ${order.email} vs ${email}`);
+        }
+      }
+      
+    } catch (error) {
+      console.error(`Error searching for order ${query}:`, error);
+      continue;
+    }
+  }
+
+  // Method 2: If not found by name, search by email and then filter
+  try {
+    console.log(`Searching orders by email: ${email}`);
+    
+    const emailSearchUrl = `https://${shopDomain}/admin/api/${apiVersion}/orders.json?email=${encodeURIComponent(email)}&limit=50`;
+    
+    const response = await fetch(emailSearchUrl, {
+      headers: {
+        'X-Shopify-Access-Token': accessToken,
+        'Content-Type': 'application/json'
+      }
+    });
+
+    if (response.ok) {
+      const data = await response.json();
+      
+      if (data.orders && data.orders.length > 0) {
+        // Look for matching order number in this customer's orders
+        const matchingOrder = data.orders.find(order => {
+          return searchQueries.some(query => 
+            order.name === query || 
+            order.order_number?.toString() === query.replace(/^#/, '')
+          );
+        });
+        
+        if (matchingOrder) {
+          console.log(`✅ Found matching order via email search: ${matchingOrder.name}`);
+          return matchingOrder;
+        }
+      }
+    }
+  } catch (error) {
+    console.error('Error searching by email:', error);
+  }
+
+  return null;
+}
+
+function validateOrderForDelivery(order) {
+  // Check if order is paid
+  if (order.financial_status !== 'paid' && order.financial_status !== 'partially_paid') {
+    return {
+      valid: false,
+      reason: 'Order payment not confirmed',
+      details: 'Please ensure your payment has been processed before requesting delivery'
+    };
+  }
+
+  // Check if order is not cancelled
+  if (order.cancelled_at) {
+    return {
+      valid: false,
+      reason: 'Order has been cancelled',
+      details: 'Cancelled orders are not eligible for delivery'
+    };
+  }
+
+  // Check if order contains digital/deliverable items
+  // You might want to add specific product tags or types here
+  const hasDigitalItems = order.line_items.some(item => {
+    return item.title.toLowerCase().includes('roblox') ||
+           item.title.toLowerCase().includes('digital') ||
+           item.variant_title?.toLowerCase().includes('digital') ||
+           (item.properties && item.properties.some(prop => 
+             prop.name.toLowerCase().includes('digital') ||
+             prop.name.toLowerCase().includes('roblox')
+           ));
   });
+
+  if (!hasDigitalItems) {
+    return {
+      valid: false,
+      reason: 'No digital items found in this order',
+      details: 'This delivery system is only for digital Roblox items'
+    };
+  }
+
+  return { valid: true };
+}
+
+function formatOrderItems(lineItems) {
+  if (!lineItems || lineItems.length === 0) {
+    return 'Digital Items';
+  }
+  
+  return lineItems.map(item => {
+    let itemName = item.title;
+    if (item.variant_title && item.variant_title !== 'Default Title') {
+      itemName += ` (${item.variant_title})`;
+    }
+    if (item.quantity > 1) {
+      itemName += ` x${item.quantity}`;
+    }
+    return itemName;
+  }).join(', ');
 }
 
 // Roblox username verification
