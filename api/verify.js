@@ -52,20 +52,37 @@ export default async function handler(req, res) {
           if (exactMatch) {
             console.log('Found exact match:', exactMatch);
             
-            // Step 2: Get avatar
-            let avatarUrl = `https://www.roblox.com/headshot-thumbnail/image?userId=${exactMatch.id}&width=150&height=150&format=png`;
+            // Step 2: Get avatar using multiple methods
+            let avatarUrl = null;
             
+            // Method 1: Try the thumbnails API
             try {
               const avatarResponse = await fetch(`https://thumbnails.roblox.com/v1/users/avatar-headshot?userIds=${exactMatch.id}&size=150x150&format=Png&isCircular=false`);
               if (avatarResponse.ok) {
                 const avatarData = await avatarResponse.json();
+                console.log('Avatar API response:', avatarData);
                 if (avatarData.data && avatarData.data[0] && avatarData.data[0].imageUrl) {
                   avatarUrl = avatarData.data[0].imageUrl;
                 }
               }
             } catch (avatarError) {
-              console.log('Avatar API failed, using fallback:', avatarError.message);
+              console.log('Avatar API failed:', avatarError.message);
             }
+            
+            // Method 2: Try alternative avatar URL formats
+            if (!avatarUrl) {
+              const alternativeUrls = [
+                `https://www.roblox.com/headshot-thumbnail/image?userId=${exactMatch.id}&width=150&height=150&format=png`,
+                `https://www.roblox.com/bust-thumbnail/image?userId=${exactMatch.id}&width=150&height=150&format=png`,
+                `https://thumbnails.roblox.com/v1/users/avatar?userIds=${exactMatch.id}&size=150x150&format=Png`,
+                `https://tr.rbxcdn.com/38c6edcb50633730ff4cf39ac8859674/150/150/AvatarHeadshot/Png`
+              ];
+              
+              // Just use the first fallback for now
+              avatarUrl = alternativeUrls[0];
+            }
+            
+            console.log('Final avatar URL:', avatarUrl);
 
             return res.status(200).json({
               userId: exactMatch.id.toString(),
