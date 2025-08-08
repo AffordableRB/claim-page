@@ -221,6 +221,53 @@
 
   <script>
     let currentUserData = null;
+    const userCache = {}; // Cache verified users to avoid repeat API calls
+
+    function displayUserProfile(userData) {
+      const avatarImg = document.getElementById('profileAvatar');
+      const profileName = document.getElementById('profileName');
+      
+      // Set up avatar with fallback handling and rate limit detection
+      avatarImg.onerror = function() {
+        console.log('Avatar failed to load, trying fallback...');
+        
+        const fallbackUrls = [
+          `https://www.roblox.com/bust-thumbnail/image?userId=${userData.userId}&width=150&height=150&format=png`,
+          // Add timestamp to bypass cache/rate limits
+          `https://www.roblox.com/headshot-thumbnail/image?userId=${userData.userId}&width=150&height=150&format=png&t=${Date.now()}`,
+          // Different size to try different endpoint
+          `https://www.roblox.com/headshot-thumbnail/image?userId=${userData.userId}&width=100&height=100&format=png`,
+        ];
+        
+        const currentSrc = this.src;
+        const nextIndex = fallbackUrls.findIndex(url => url.split('&t=')[0] === currentSrc.split('&t=')[0]) + 1;
+        
+        if (nextIndex < fallbackUrls.length) {
+          console.log('Trying fallback URL:', fallbackUrls[nextIndex]);
+          this.src = fallbackUrls[nextIndex];
+        } else {
+          // Create placeholder avatar
+          console.log('All avatar URLs failed, creating placeholder');
+          this.src = 'data:image/svg+xml,' + encodeURIComponent(`
+            <svg xmlns="http://www.w3.org/2000/svg" width="150" height="150" viewBox="0 0 150 150">
+              <rect width="150" height="150" fill="#4CAF50"/>
+              <circle cx="75" cy="60" r="25" fill="white"/>
+              <rect x="55" y="90" width="40" height="40" rx="20" fill="white"/>
+              <text x="75" y="130" font-family="Arial" font-size="10" fill="white" text-anchor="middle">${userData.username}</text>
+            </svg>
+          `);
+        }
+      };
+      
+      // Add random parameter to try to bypass rate limiting
+      const avatarUrl = userData.avatar.includes('?') 
+        ? `${userData.avatar}&t=${Date.now()}`
+        : `${userData.avatar}?t=${Date.now()}`;
+        
+      avatarImg.src = avatarUrl;
+      avatarImg.alt = `${userData.username}'s Avatar`;
+      profileName.textContent = userData.username;
+    }
 
     function showStep(stepNumber) {
       document.querySelectorAll('.step').forEach((step) =>
@@ -279,6 +326,17 @@
       document.getElementById('successMessage').style.display = 'none';
       document.getElementById('debugInfo').style.display = 'none';
 
+      // Check cache first
+      if (userCache[username.toLowerCase()]) {
+        console.log('Using cached user data');
+        currentUserData = userCache[username.toLowerCase()];
+        displayUserProfile(currentUserData);
+        showStep(2);
+        verifyBtn.innerHTML = 'Verify Username';
+        verifyBtn.disabled = false;
+        return;
+      }
+
       try {
         console.log('Sending request to API...');
         
@@ -325,45 +383,10 @@
           userId: userData.userId,
         };
 
-        // Update profile display
-        const avatarImg = document.getElementById('profileAvatar');
-        const profileName = document.getElementById('profileName');
-        
-        // Set up avatar with fallback handling
-        avatarImg.onerror = function() {
-          console.log('Avatar failed to load, trying fallback...');
-          
-          // Try alternative avatar URLs
-          const fallbackUrls = [
-            `https://www.roblox.com/bust-thumbnail/image?userId=${currentUserData.userId}&width=150&height=150&format=png`,
-            `https://www.roblox.com/headshot-thumbnail/image?userId=${currentUserData.userId}&width=150&height=150&format=png`,
-            `https://tr.rbxcdn.com/38c6edcb50633730ff4cf39ac8859674/150/150/AvatarHeadshot/Png`
-          ];
-          
-          // Try the next fallback URL
-          const currentSrc = this.src;
-          const nextFallback = fallbackUrls.find(url => url !== currentSrc);
-          
-          if (nextFallback) {
-            console.log('Trying fallback URL:', nextFallback);
-            this.src = nextFallback;
-          } else {
-            // If all fails, create a placeholder
-            console.log('All avatar URLs failed, creating placeholder');
-            this.src = 'data:image/svg+xml,' + encodeURIComponent(`
-              <svg xmlns="http://www.w3.org/2000/svg" width="150" height="150" viewBox="0 0 150 150">
-                <rect width="150" height="150" fill="#4CAF50"/>
-                <text x="75" y="75" font-family="Arial" font-size="60" fill="white" text-anchor="middle" dominant-baseline="middle">👤</text>
-                <text x="75" y="110" font-family="Arial" font-size="12" fill="white" text-anchor="middle">${currentUserData.username}</text>
-              </svg>
-            `);
-          }
-        };
-        
-        avatarImg.src = currentUserData.avatar;
-        avatarImg.alt = `${userData.username}'s Avatar`;
-        profileName.textContent = currentUserData.username;
+        // Cache the user data
+        userCache[username.toLowerCase()] = currentUserData;
 
+        displayUserProfile(currentUserData);
         showStep(2);
       } catch (error) {
         console.error('Verification error:', error);
