@@ -5,7 +5,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Grow a Garden - Username Verification</title>
   <style>
-    /* Your full CSS styles here (unchanged) */
     * {
       margin: 0; padding: 0; box-sizing: border-box;
     }
@@ -158,6 +157,15 @@
       font-size: 14px;
       border-left: 4px solid #ffc107;
     }
+    .debug-info {
+      background: #f0f0f0;
+      padding: 10px;
+      border-radius: 5px;
+      margin-top: 10px;
+      font-family: monospace;
+      font-size: 12px;
+      text-align: left;
+    }
   </style>
 </head>
 <body>
@@ -206,16 +214,9 @@
     </div>
 
     <!-- Error/Success Messages -->
-    <div
-      id="errorMessage"
-      class="error-message"
-      style="display: none"
-    ></div>
-    <div
-      id="successMessage"
-      class="success-message"
-      style="display: none"
-    ></div>
+    <div id="errorMessage" class="error-message" style="display: none"></div>
+    <div id="successMessage" class="success-message" style="display: none"></div>
+    <div id="debugInfo" class="debug-info" style="display: none"></div>
   </div>
 
   <script>
@@ -234,13 +235,19 @@
       errorEl.style.display = 'block';
       setTimeout(() => {
         errorEl.style.display = 'none';
-      }, 5000);
+      }, 10000);
     }
 
     function showSuccess(message) {
       const successEl = document.getElementById('successMessage');
       successEl.textContent = message;
       successEl.style.display = 'block';
+    }
+
+    function showDebug(info) {
+      const debugEl = document.getElementById('debugInfo');
+      debugEl.textContent = JSON.stringify(info, null, 2);
+      debugEl.style.display = 'block';
     }
 
     async function verifyUsername() {
@@ -267,20 +274,47 @@
       verifyBtn.innerHTML = '<span class="loading"></span>Verifying...';
       verifyBtn.disabled = true;
 
+      // Clear previous messages
+      document.getElementById('errorMessage').style.display = 'none';
+      document.getElementById('successMessage').style.display = 'none';
+      document.getElementById('debugInfo').style.display = 'none';
+
       try {
-        // Call your backend API route
+        console.log('Sending request to API...');
+        
         const response = await fetch('https://claim-page-one.vercel.app/api/verify', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 
+            'Content-Type': 'application/json',
+            'Accept': 'application/json'
+          },
           body: JSON.stringify({ username }),
         });
 
-        const userData = await response.json();
+        console.log('Response status:', response.status);
+        console.log('Response headers:', response.headers);
+
+        // Get the raw response text first
+        const responseText = await response.text();
+        console.log('Raw response:', responseText);
+        
+        // Show debug info
+        showDebug({
+          status: response.status,
+          statusText: response.statusText,
+          headers: Object.fromEntries(response.headers.entries()),
+          responseText: responseText.substring(0, 500) + (responseText.length > 500 ? '...' : '')
+        });
+
+        let userData;
+        try {
+          userData = JSON.parse(responseText);
+        } catch (parseError) {
+          throw new Error(`Invalid JSON response: ${parseError.message}. Response was: ${responseText.substring(0, 200)}`);
+        }
 
         if (!response.ok) {
-          showError(userData.error || 'Failed to verify username.');
-          verifyBtn.innerHTML = 'Verify Username';
-          verifyBtn.disabled = false;
+          showError(userData.error || `Server error: ${response.status}`);
           return;
         }
 
@@ -301,7 +335,7 @@
         showStep(2);
       } catch (error) {
         console.error('Verification error:', error);
-        showError('Unable to verify username. Please try again later.');
+        showError(`Error: ${error.message}`);
       } finally {
         verifyBtn.innerHTML = 'Verify Username';
         verifyBtn.disabled = false;
@@ -313,7 +347,6 @@
 
       showSuccess(`✅ Username verified: ${currentUserData.username}`);
 
-      // You can save, redirect, or handle verified data here
       console.log('Verified user data:', currentUserData);
 
       setTimeout(() => {
@@ -329,6 +362,7 @@
 
       document.getElementById('errorMessage').style.display = 'none';
       document.getElementById('successMessage').style.display = 'none';
+      document.getElementById('debugInfo').style.display = 'none';
     }
 
     // Allow Enter key to submit
