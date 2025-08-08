@@ -20,7 +20,7 @@
       padding: 40px;
       border-radius: 20px;
       box-shadow: 0 20px 40px rgba(0,0,0,0.15);
-      max-width: 800px; /* Made wider */
+      max-width: 500px;
       width: 100%;
       text-align: center;
       animation: slideUp 0.6s ease-out;
@@ -106,20 +106,10 @@
       background: #eeeeee;
       box-shadow: 0 8px 20px rgba(0,0,0,0.1);
     }
-    .btn.delivery {
-      background: linear-gradient(45deg, #2E7D32, #388E3C); /* Darker blue/green */
-    }
-    .btn.delivery:hover {
-      transform: translateY(-2px);
-      box-shadow: 0 12px 25px rgba(46, 125, 50, 0.4);
-    }
-
     .profile-card {
       background: #f8f9fa; padding: 30px;
-      border-radius: 15px;
+      border-radius: 15px; margin: 25px 0;
       border: 2px solid #e9ecef;
-      text-align: center;
-      min-height: 300px;
     }
     .profile-avatar {
       width: 120px; height: 120px;
@@ -246,33 +236,6 @@
       color: #333;
       font-weight: 500;
     }
-    .button-group {
-      display: flex;
-      gap: 15px;
-      margin-top: 20px;
-    }
-    .button-group .btn {
-      margin-bottom: 0;
-    }
-
-    /* Mobile responsiveness */
-    @media (max-width: 768px) {
-      .container {
-        max-width: 500px;
-        padding: 30px 20px;
-      }
-      .step-content {
-        flex-direction: column;
-        gap: 20px;
-        text-align: center;
-      }
-      .button-group {
-        flex-direction: column;
-      }
-      .button-group .btn {
-        margin-bottom: 15px;
-      }
-    }
   </style>
 </head>
 <body>
@@ -287,7 +250,7 @@
       <div class="step-dot" id="dot3"></div>
     </div>
 
-    <!-- Step 1: Username Input -->
+    <!-- Step 1: Enter Username -->
     <div class="step active" id="step1">
       <div class="form-group">
         <label for="robloxUsername">Enter your Roblox Username:</label>
@@ -326,7 +289,7 @@
       </div>
     </div>
 
-    <!-- Step 3: Email Input -->
+    <!-- Step 3: Enter Email & Final Confirmation -->
     <div class="step" id="step3">
       <div class="form-group">
         <label for="emailAddress">Enter your Email Address:</label>
@@ -348,11 +311,8 @@
       <div class="note">
         We'll verify that this email address is valid and can receive messages
       </div>
-    </div>
 
-    <!-- Step 4: Final Summary -->
-    <div class="step" id="step4">
-      <div id="finalSummary" class="summary-card">
+      <div id="finalSummary" class="summary-card" style="display: none;">
         <h3 style="color: #333; margin-bottom: 15px;">Registration Complete!</h3>
         <div class="summary-item">
           <span class="summary-label">Roblox Username:</span>
@@ -363,10 +323,6 @@
           <span class="summary-value" id="summaryEmail"></span>
         </div>
       </div>
-
-      <button class="btn delivery" onclick="joinDeliveryServer()" id="joinBtn">
-        Join Delivery Server
-      </button>
     </div>
 
     <!-- Error/Success Messages -->
@@ -399,21 +355,8 @@
       document.querySelectorAll('.step').forEach((step) =>
         step.classList.remove('active')
       );
-      
-      // Map steps to match the new structure
-      if (stepNumber === 1) {
-        document.getElementById('step1').classList.add('active');
-        updateStepIndicator(1);
-      } else if (stepNumber === 2) {
-        document.getElementById('step2').classList.add('active');
-        updateStepIndicator(1); // Still show dot 1 as active since we combine steps 1 & 2
-      } else if (stepNumber === 3) {
-        document.getElementById('step3').classList.add('active');
-        updateStepIndicator(2);
-      } else if (stepNumber === 4) {
-        document.getElementById('step4').classList.add('active');
-        updateStepIndicator(3);
-      }
+      document.getElementById('step' + stepNumber).classList.add('active');
+      updateStepIndicator(stepNumber);
       
       // Clear messages when changing steps
       document.getElementById('errorMessage').style.display = 'none';
@@ -422,7 +365,6 @@
     }
 
     function displayUserProfile(userData) {
-      const profileCard = document.getElementById('profileCard');
       const avatarImg = document.getElementById('profileAvatar');
       const profileName = document.getElementById('profileName');
       
@@ -525,6 +467,7 @@
       if (userCache[username.toLowerCase()]) {
         currentUserData = userCache[username.toLowerCase()];
         displayUserProfile(currentUserData);
+        showStep(2);
         verifyBtn.innerHTML = 'Verify Username';
         verifyBtn.disabled = false;
         return;
@@ -584,10 +527,6 @@
       showStep(3);
     }
 
-    function tryAgain() {
-      showStep(1);
-    }
-
     async function validateAndSubmit() {
       const email = document.getElementById('emailAddress').value.trim();
       const emailBtn = document.getElementById('emailBtn');
@@ -639,12 +578,20 @@
             provider: result.emailProvider || 'unknown'
           };
           
+          showEmailValidation('✅ Email address is valid!', true);
+          
           // Show final summary
           document.getElementById('summaryUsername').textContent = currentUserData.username;
           document.getElementById('summaryEmail').textContent = email;
+          document.getElementById('finalSummary').style.display = 'block';
+          
+          // Hide form elements
+          document.querySelector('.form-group').style.display = 'none';
+          document.querySelector('.note').style.display = 'none';
+          emailBtn.style.display = 'none';
+          document.querySelector('.btn.secondary').style.display = 'none';
           
           showSuccess(`✅ Registration complete! Welcome ${currentUserData.username}!`);
-          showStep(4);
           
           const finalData = {
             roblox: currentUserData,
@@ -653,6 +600,15 @@
           };
           
           console.log('Final registration data:', finalData);
+
+          setTimeout(() => {
+            alert(`Welcome ${currentUserData.username}! Redirecting to server...`);
+            // window.location.href = '/join-server?' + new URLSearchParams({
+            //   userId: currentUserData.userId,
+            //   username: currentUserData.username,
+            //   email: currentEmailData.email
+            // });
+          }, 2000);
         } else {
           showEmailValidation(result.reason || 'Email address appears to be invalid', false);
         }
@@ -660,19 +616,11 @@
         console.error('Email validation error:', error);
         showEmailValidation(`Error validating email: ${error.message}`, false);
       } finally {
-        emailBtn.innerHTML = 'Complete Registration';
-        emailBtn.disabled = false;
+        if (emailBtn.style.display !== 'none') {
+          emailBtn.innerHTML = 'Complete Registration';
+          emailBtn.disabled = false;
+        }
       }
-    }
-
-    function joinDeliveryServer() {
-      alert(`Welcome ${currentUserData.username}! Redirecting to delivery server...`);
-      // Uncomment when ready to redirect:
-      // window.location.href = '/join-server?' + new URLSearchParams({
-      //   userId: currentUserData.userId,
-      //   username: currentUserData.username,
-      //   email: currentEmailData.email
-      // });
     }
 
     function goBack(toStep) {
@@ -680,7 +628,16 @@
         currentUserData = null;
         document.getElementById('robloxUsername').value = '';
       } else if (toStep === 2) {
-        // Going back from email step to profile confirmation
+        currentEmailData = null;
+        document.getElementById('emailAddress').value = '';
+        document.getElementById('emailValidation').style.display = 'none';
+        document.getElementById('emailAddress').className = '';
+        // Reset step 3 display
+        document.querySelector('.form-group').style.display = 'block';
+        document.querySelector('.note').style.display = 'block';
+        document.getElementById('emailBtn').style.display = 'block';
+        document.querySelector('.btn.secondary').style.display = 'block';
+        document.getElementById('finalSummary').style.display = 'none';
       }
       
       showStep(toStep);
