@@ -612,13 +612,6 @@
         });
 
         const responseText = await response.text();
-        
-        showDebug({
-          status: response.status,
-          statusText: response.statusText,
-          headers: Object.fromEntries(response.headers.entries()),
-          responseText: responseText.substring(0, 500) + (responseText.length > 500 ? '...' : '')
-        });
 
         let userData;
         try {
