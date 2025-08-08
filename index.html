@@ -35,15 +35,15 @@
     }
     .logo {
       width: 100px;
-      height: 100px;
+      height: auto;
       margin: 0 auto 25px;
-      border-radius: 50%;
-      overflow: hidden;
-      box-shadow: 0 8px 20px rgba(76, 175, 80, 0.3);
+      box-shadow: none;
+      border-radius: 0;
+      overflow: visible;
     }
     .logo img {
       width: 100%;
-      height: 100%;
+      height: auto;
       object-fit: contain;
       display: block;
     }
@@ -195,21 +195,21 @@
       100% { transform: rotate(360deg); }
     }
     .error-message {
-      background: #e3ebfa;
-      color: #2c3e70;
+      background: #ffebee;
+      color: #c62828;
       padding: 15px;
       border-radius: 10px;
       margin: 20px 0;
-      border-left: 4px solid #1b2a5f;
+      border-left: 4px solid #f44336;
       text-align: left;
     }
     .success-message {
-      background: #e3ebfa;
-      color: #2c3e70;
+      background: #e8f5e9;
+      color: #2e7d32;
       padding: 15px;
       border-radius: 10px;
       margin: 20px 0;
-      border-left: 4px solid #1b2a5f;
+      border-left: 4px solid #4caf50;
       text-align: left;
     }
     .validation-message {
@@ -219,23 +219,23 @@
       border-radius: 6px;
     }
     .validation-message.error {
-      background: #e3ebfa;
-      color: #2c3e70;
-      border: 1px solid #1b2a5f;
+      background: #ffebee;
+      color: #c62828;
+      border: 1px solid #ffcdd2;
     }
     .validation-message.success {
-      background: #e3ebfa;
-      color: #2c3e70;
-      border: 1px solid #1b2a5f;
+      background: #e8f5e9;
+      color: #2e7d32;
+      border: 1px solid #c8e6c9;
     }
     .note {
-      background: #e3ebfa;
-      color: #2c3e70;
+      background: #cce0ff; /* lighter blue note background */
+      color: #0b3d91; /* darker blue text color */
       padding: 15px;
       border-radius: 10px;
       margin-top: 20px;
       font-size: 14px;
-      border-left: 4px solid #1b2a5f;
+      border-left: 4px solid #1952d4; /* darker blue border */
       grid-column: 1 / -1;
     }
     .debug-info {
@@ -320,7 +320,7 @@
 <body>
   <div class="container">
     <div class="logo">
-      <img src="https://cdn.shopify.com/s/files/1/0943/2311/4269/files/635faaf2-c052-483e-a3c8-8bf994184572.png?v=1753916171" alt="Affordable Garden Raccoon Logo" />
+      <img src="https://cdn.shopify.com/s/files/1/0943/2311/4269/files/sittingon-Photoroom-Photoroom.png?v=1754625898" alt="Affordable Garden Raccoon Logo" />
     </div>
     <h1>Affordable.Garden Delivery Page</h1>
     <p class="subtitle">User Verification</p>
@@ -420,7 +420,7 @@
       
       <button class="btn secondary" onclick="goBack(2)" style="margin-top: 10px;">Go Back</button>
 
-      <div class="note" style="margin-top: 20px; background: #e3ebfa; color: #2c3e70; border-left: 4px solid #1b2a5f;">
+      <div class="note" style="margin-top: 20px; background: #cce0ff; color: #0b3d91; border-left: 4px solid #1952d4;">
         <strong>Important:</strong> Please join the server and wait for a staff member to deliver your items. Keep this page open for reference.
       </div>
     </div>
