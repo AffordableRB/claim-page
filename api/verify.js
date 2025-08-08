@@ -1,5 +1,7 @@
 import crypto from 'crypto';
 
+const DEBUG_MODE = process.env.NODE_ENV === 'development';
+
 export default async function handler(req, res) {
   // Set CORS headers
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -143,6 +145,15 @@ async function findShopifyOrder(orderNumber, email) {
     orderNumber.replace(/^#/, ''), // Remove # if present
     `#${orderNumber.replace(/^#/, '')}` // Add # if not present
   ];
+
+  if (DEBUG_MODE) {
+    console.log('🐛 DEBUG: Order search details:', {
+      searchQueries,
+      shopDomain,
+      hasAccessToken: !!accessToken,
+      email
+    });
+  }
 
   for (const query of searchQueries) {
     try {
