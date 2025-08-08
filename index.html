@@ -588,27 +588,38 @@
       verifyBtn.disabled = true;
 
       try {
+        console.log('Sending order verification request:', { orderNumber, email });
+        
         const response = await fetch('https://claim-page-one.vercel.app/api/verify', {
           method: 'POST',
           headers: { 
             'Content-Type': 'application/json',
             'Accept': 'application/json'
           },
-          body: JSON.stringify({ orderNumber, email }),
+          body: JSON.stringify({ 
+            orderNumber: orderNumber,
+            email: email,
+            action: 'verify_order'
+          }),
         });
 
         const responseText = await response.text();
+        console.log('Raw response:', responseText);
+        
         let orderData;
         
         try {
           orderData = JSON.parse(responseText);
         } catch (parseError) {
-          throw new Error(`Invalid JSON response: ${parseError.message}`);
+          console.error('JSON parse error:', parseError);
+          throw new Error(`Server returned invalid response format`);
         }
+
+        console.log('Parsed response:', orderData);
 
         if (!response.ok) {
           if (response.status === 404) {
-            showError('Order not found. Please check your order number and email address.');
+            showError(orderData.error || 'Order not found. Please check your order number and email address.');
           } else if (response.status === 400) {
             showError(orderData.error || 'Invalid order information provided.');
           } else {
@@ -631,7 +642,7 @@
         
       } catch (error) {
         console.error('Order verification error:', error);
-        showError(`Error: ${error.message}`);
+        showError(`Error verifying order: ${error.message}`);
       } finally {
         verifyBtn.innerHTML = 'Verify Order';
         verifyBtn.disabled = false;
@@ -667,7 +678,10 @@
             'Content-Type': 'application/json',
             'Accept': 'application/json'
           },
-          body: JSON.stringify({ username }),
+          body: JSON.stringify({ 
+            username: username,
+            action: 'verify_username' 
+          }),
         });
 
         const responseText = await response.text();
