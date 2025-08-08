@@ -348,13 +348,72 @@ async function handleUsernameVerification(req, res, username) {
 
   console.log(`Searching for Roblox user: ${cleanUsername}`);
 
-  // Try Roblox API
+  // Method 1: Try the more reliable username-to-ID conversion
   try {
+    console.log('Attempting username-to-ID conversion...');
+    const usernameToIdResponse = await fetch('https://users.roblox.com/v1/usernames/users', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        usernames: [cleanUsername],
+        excludeBannedUsers: true
+      })
+    });
+    
+    if (usernameToIdResponse.ok) {
+      const usernameData = await usernameToIdResponse.json();
+      console.log('Username-to-ID API response:', usernameData);
+      
+      if (usernameData.data && usernameData.data.length > 0) {
+        const userData = usernameData.data[0];
+        
+        // Check if the returned username exactly matches (case-insensitive)
+        if (userData.name && userData.name.toLowerCase() === cleanUsername.toLowerCase()) {
+          console.log('✅ Found exact match via username-to-ID API:', userData.name);
+          
+          // Get avatar
+          let avatarUrl = `https://www.roblox.com/headshot-thumbnail/image?userId=${userData.id}&width=150&height=150&format=png&v=${Date.now()}`;
+          
+          try {
+            const avatarResponse = await fetch(`https://thumbnails.roblox.com/v1/users/avatar-headshot?userIds=${userData.id}&size=150x150&format=Png&isCircular=false`);
+            if (avatarResponse.ok) {
+              const avatarData = await avatarResponse.json();
+              if (avatarData.data && avatarData.data[0] && avatarData.data[0].imageUrl) {
+                avatarUrl = avatarData.data[0].imageUrl;
+                console.log('Got avatar from thumbnails API');
+              }
+            }
+          } catch (avatarError) {
+            console.log('Avatar API failed, using fallback URL');
+          }
+
+          return res.status(200).json({
+            userId: userData.id.toString(),
+            username: userData.name,
+            avatarUrl: avatarUrl,
+            method: 'username-to-id-api'
+          });
+        }
+      } else {
+        console.log('❌ Username-to-ID API returned no users');
+      }
+    } else {
+      console.log('❌ Username-to-ID API request failed:', usernameToIdResponse.status);
+    }
+  } catch (apiError) {
+    console.error('❌ Username-to-ID API error:', apiError.message);
+  }
+
+  // Method 2: Fallback to search API
+  try {
+    console.log('Falling back to search API...');
     const userSearchResponse = await fetch(`https://users.roblox.com/v1/users/search?keyword=${encodeURIComponent(cleanUsername)}&limit=10`);
     
     if (userSearchResponse.ok) {
       const userSearchData = await userSearchResponse.json();
-      console.log(`Roblox API returned ${userSearchData.data?.length || 0} users`);
+      console.log(`Search API returned ${userSearchData.data?.length || 0} users`);
       
       if (userSearchData.data && userSearchData.data.length > 0) {
         const exactMatch = userSearchData.data.find(user => 
@@ -362,7 +421,7 @@ async function handleUsernameVerification(req, res, username) {
         );
         
         if (exactMatch) {
-          console.log('✅ Found exact Roblox user match:', exactMatch.name);
+          console.log('✅ Found exact match via search API:', exactMatch.name);
           
           // Try to get avatar
           let avatarUrl = `https://www.roblox.com/headshot-thumbnail/image?userId=${exactMatch.id}&width=150&height=150&format=png&v=${Date.now()}`;
@@ -384,29 +443,29 @@ async function handleUsernameVerification(req, res, username) {
             userId: exactMatch.id.toString(),
             username: exactMatch.name,
             avatarUrl: avatarUrl,
-            method: 'roblox-api'
+            method: 'search-api'
           });
         } else {
-          console.log('❌ No exact username match found in API results');
+          console.log('❌ No exact username match found in search API results');
         }
       } else {
-        console.log('❌ Roblox API returned no users');
+        console.log('❌ Search API returned no users');
       }
     } else {
-      console.log('❌ Roblox API request failed:', userSearchResponse.status);
+      console.log('❌ Search API request failed:', userSearchResponse.status);
     }
   } catch (apiError) {
-    console.error('❌ Roblox API error:', apiError.message);
+    console.error('❌ Search API error:', apiError.message);
   }
 
-  // If API fails, return error
-  console.log('❌ Username verification failed');
+  // If both methods fail, return error
+  console.log('❌ Username verification failed with both methods');
   return res.status(404).json({ 
     error: `User "${cleanUsername}" not found. Please check the spelling and try again.`,
     suggestions: [
       'Make sure the username is spelled correctly (case-sensitive)',
       'Check that the account exists on Roblox',
-      'Try again in a few minutes'
+      'Try again in a few minutes - Roblox APIs can be temporarily unavailable'
     ]
   });
 }
