@@ -20,7 +20,7 @@
       padding: 40px;
       border-radius: 20px;
       box-shadow: 0 20px 40px rgba(0,0,0,0.15);
-      max-width: 500px;
+      max-width: 900px;
       width: 100%;
       text-align: center;
       animation: slideUp 0.6s ease-out;
@@ -106,11 +106,46 @@
       background: #eeeeee;
       box-shadow: 0 8px 20px rgba(0,0,0,0.1);
     }
-    .profile-card {
-      background: #f8f9fa; padding: 30px;
-      border-radius: 15px; margin: 25px 0;
-      border: 2px solid #e9ecef;
+    .btn.delivery {
+      background: linear-gradient(45deg, #1565C0, #1976D2);
+      font-size: 18px; 
+      padding: 18px 36px;
     }
+    .btn.delivery:hover {
+      box-shadow: 0 12px 25px rgba(21, 101, 192, 0.4);
+    }
+    
+    /* Wide Layout Styles */
+    .step-content {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 40px;
+      align-items: start;
+      margin-top: 20px;
+    }
+    
+    .input-section {
+      text-align: left;
+    }
+    
+    .profile-section {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      background: #f8f9fa;
+      padding: 30px;
+      border-radius: 15px;
+      border: 2px solid #e9ecef;
+      min-height: 300px;
+    }
+    
+    .profile-section.empty {
+      justify-content: center;
+      color: #999;
+      font-style: italic;
+    }
+    
     .profile-avatar {
       width: 120px; height: 120px;
       border-radius: 50%;
@@ -126,6 +161,18 @@
       font-size: 18px; color: #555;
       margin-bottom: 25px;
     }
+    
+    .profile-buttons {
+      display: flex;
+      gap: 15px;
+      width: 100%;
+    }
+    
+    .profile-buttons .btn {
+      margin-bottom: 0;
+      flex: 1;
+    }
+    
     .loading {
       display: inline-block; width: 20px; height: 20px;
       border: 3px solid #f3f3f3;
@@ -180,6 +227,7 @@
       margin-top: 20px;
       font-size: 14px;
       border-left: 4px solid #ffc107;
+      grid-column: 1 / -1;
     }
     .debug-info {
       background: #f0f0f0;
@@ -189,6 +237,7 @@
       font-family: monospace;
       font-size: 12px;
       text-align: left;
+      grid-column: 1 / -1;
     }
     .step-indicator {
       display: flex;
@@ -236,6 +285,27 @@
       color: #333;
       font-weight: 500;
     }
+    
+    /* Mobile Responsive */
+    @media (max-width: 768px) {
+      .container {
+        max-width: 500px;
+        padding: 30px 20px;
+      }
+      
+      .step-content {
+        grid-template-columns: 1fr;
+        gap: 20px;
+      }
+      
+      .profile-buttons {
+        flex-direction: column;
+      }
+      
+      .profile-buttons .btn {
+        width: 100%;
+      }
+    }
   </style>
 </head>
 <body>
@@ -248,74 +318,72 @@
       <div class="step-dot active" id="dot1"></div>
       <div class="step-dot" id="dot2"></div>
       <div class="step-dot" id="dot3"></div>
-      <div class="step-dot" id="dot4"></div>
     </div>
 
-    <!-- Step 1: Enter Username -->
+    <!-- Step 1: Username & Profile Verification -->
     <div class="step active" id="step1">
-      <div class="form-group">
-        <label for="robloxUsername">Enter your Roblox Username:</label>
-        <input
-          type="text"
-          id="robloxUsername"
-          placeholder="YourRobloxUsername"
-          required
-          autocomplete="off"
-        />
+      <div style="max-width: 400px; margin: 0 auto;">
+        <div class="form-group">
+          <label for="robloxUsername">Enter your Roblox Username:</label>
+          <input
+            type="text"
+            id="robloxUsername"
+            placeholder="YourRobloxUsername"
+            required
+            autocomplete="off"
+          />
+        </div>
+
+        <button class="btn" onclick="verifyUsername()" id="verifyBtn">
+          Verify Username
+        </button>
       </div>
-
-      <button class="btn" onclick="verifyUsername()" id="verifyBtn">
-        Verify Username
-      </button>
-
+      
+      <div id="profileSection" style="display: none;">
+        <div class="profile-card">
+          <div id="profileContent"></div>
+        </div>
+      </div>
+      
       <div class="note">
         Make sure your username is spelled exactly right (case-sensitive)
       </div>
     </div>
 
-    <!-- Step 2: Profile Confirmation -->
+    <!-- Step 2: Enter Email -->
     <div class="step" id="step2">
-      <div class="profile-card">
-        <img
-          id="profileAvatar"
-          class="profile-avatar"
-          src=""
-          alt="Profile Picture"
-        />
-        <div id="profileName" class="profile-name"></div>
-        <div class="profile-question">Is this your Roblox account?</div>
+      <div class="step-content">
+        <div class="input-section">
+          <div class="form-group">
+            <label for="emailAddress">Enter your Email Address:</label>
+            <input
+              type="email"
+              id="emailAddress"
+              placeholder="your.email@example.com"
+              required
+              autocomplete="email"
+            />
+            <div id="emailValidation" class="validation-message" style="display: none;"></div>
+          </div>
 
-        <button class="btn" onclick="confirmProfile()">Yes, that's me!</button>
-        <button class="btn secondary" onclick="goBack(1)">No, try again</button>
+          <button class="btn" onclick="validateEmailAndProceed()" id="emailBtn">
+            Continue to Delivery
+          </button>
+          <button class="btn secondary" onclick="goBack(1)">Go Back</button>
+        </div>
+        
+        <div class="profile-section">
+          <img id="emailProfileAvatar" class="profile-avatar" src="" alt="Profile Picture" />
+          <div id="emailProfileName" class="profile-name"></div>
+          <div style="color: #666; text-align: center;">
+            We'll use your email for order updates and delivery notifications
+          </div>
+        </div>
       </div>
     </div>
 
-    <!-- Step 3: Enter Email -->
+    <!-- Step 3: Join Delivery Server -->
     <div class="step" id="step3">
-      <div class="form-group">
-        <label for="emailAddress">Enter your Email Address:</label>
-        <input
-          type="email"
-          id="emailAddress"
-          placeholder="your.email@example.com"
-          required
-          autocomplete="email"
-        />
-        <div id="emailValidation" class="validation-message" style="display: none;"></div>
-      </div>
-
-      <button class="btn" onclick="validateEmailAndProceed()" id="emailBtn">
-        Continue to Delivery
-      </button>
-      <button class="btn secondary" onclick="goBack(2)">Go Back</button>
-
-      <div class="note">
-        We'll use this email for order updates and delivery notifications
-      </div>
-    </div>
-
-    <!-- Step 4: Join Delivery Server -->
-    <div class="step" id="step4">
       <h2 style="color: #333; margin-bottom: 25px;">Ready for Delivery!</h2>
       
       <div class="summary-card">
@@ -333,18 +401,19 @@
         </div>
       </div>
 
-      <div class="profile-card" style="margin-top: 20px;">
+      <div style="display: flex; justify-content: center; margin: 30px 0;">
         <img id="summaryAvatar" class="profile-avatar" src="" alt="Profile Picture" />
-        <div style="color: #666; margin-top: 15px;">
-          Click the button below to join our private Roblox server for your delivery
-        </div>
+      </div>
+      
+      <div style="color: #666; margin-bottom: 30px;">
+        Click the button below to join our private Roblox server for your delivery
       </div>
 
-      <button class="btn" onclick="joinDeliveryServer()" style="background: linear-gradient(45deg, #2196F3, #42A5F5); font-size: 18px; padding: 18px 36px;">
+      <button class="btn delivery" onclick="joinDeliveryServer()">
         🚀 Join Delivery Server
       </button>
       
-      <button class="btn secondary" onclick="goBack(3)" style="margin-top: 10px;">Edit Email</button>
+      <button class="btn secondary" onclick="goBack(2)" style="margin-top: 10px;">Edit Email</button>
 
       <div class="note" style="margin-top: 20px;">
         <strong>Important:</strong> Please join the server and wait for a staff member to deliver your items. Keep this page open for reference.
@@ -364,7 +433,7 @@
     const userCache = {}; // Cache verified users to avoid repeat API calls
 
     function updateStepIndicator(step) {
-      for (let i = 1; i <= 4; i++) {
+      for (let i = 1; i <= 3; i++) {
         const dot = document.getElementById(`dot${i}`);
         dot.classList.remove('active', 'completed');
         
@@ -391,8 +460,14 @@
     }
 
     function displayUserProfile(userData) {
-      const avatarImg = document.getElementById('profileAvatar');
-      const profileName = document.getElementById('profileName');
+      const profileSection = document.getElementById('profileSection');
+      const profileContent = document.getElementById('profileContent');
+      
+      profileSection.style.display = 'block';
+      
+      const avatarImg = document.createElement('img');
+      avatarImg.className = 'profile-avatar';
+      avatarImg.alt = `${userData.username}'s Avatar`;
       
       // Set up avatar with fallback handling
       avatarImg.onerror = function() {
@@ -427,8 +502,36 @@
         : `${userData.avatar}?t=${Date.now()}`;
         
       avatarImg.src = avatarUrl;
-      avatarImg.alt = `${userData.username}'s Avatar`;
+      
+      const profileName = document.createElement('div');
+      profileName.className = 'profile-name';
       profileName.textContent = userData.username;
+      
+      const profileQuestion = document.createElement('div');
+      profileQuestion.className = 'profile-question';
+      profileQuestion.textContent = 'Is this your Roblox account?';
+      
+      const buttonsDiv = document.createElement('div');
+      buttonsDiv.className = 'profile-buttons';
+      
+      const confirmBtn = document.createElement('button');
+      confirmBtn.className = 'btn';
+      confirmBtn.textContent = 'Yes, that\'s me!';
+      confirmBtn.onclick = confirmProfile;
+      
+      const retryBtn = document.createElement('button');
+      retryBtn.className = 'btn secondary';
+      retryBtn.textContent = 'Try again';
+      retryBtn.onclick = () => goBack(1);
+      
+      buttonsDiv.appendChild(confirmBtn);
+      buttonsDiv.appendChild(retryBtn);
+      
+      profileContent.innerHTML = '';
+      profileContent.appendChild(avatarImg);
+      profileContent.appendChild(profileName);
+      profileContent.appendChild(profileQuestion);
+      profileContent.appendChild(buttonsDiv);
     }
 
     function showError(message) {
@@ -493,7 +596,6 @@
       if (userCache[username.toLowerCase()]) {
         currentUserData = userCache[username.toLowerCase()];
         displayUserProfile(currentUserData);
-        showStep(2);
         verifyBtn.innerHTML = 'Verify Username';
         verifyBtn.disabled = false;
         return;
@@ -538,7 +640,6 @@
 
         userCache[username.toLowerCase()] = currentUserData;
         displayUserProfile(currentUserData);
-        showStep(2);
       } catch (error) {
         console.error('Verification error:', error);
         showError(`Error: ${error.message}`);
@@ -550,7 +651,12 @@
 
     function confirmProfile() {
       if (!currentUserData) return;
-      showStep(3);
+      
+      // Update step 2 profile display
+      document.getElementById('emailProfileAvatar').src = currentUserData.avatar;
+      document.getElementById('emailProfileName').textContent = currentUserData.username;
+      
+      showStep(2);
     }
 
     async function validateEmailAndProceed() {
@@ -613,7 +719,7 @@
         document.getElementById('summaryAvatar').src = currentUserData.avatar;
         
         setTimeout(() => {
-          showStep(4);
+          showStep(3);
         }, 1500);
         
       } catch (error) {
@@ -632,7 +738,7 @@
         document.getElementById('summaryAvatar').src = currentUserData.avatar;
         
         setTimeout(() => {
-          showStep(4);
+          showStep(3);
         }, 1500);
       } finally {
         emailBtn.innerHTML = 'Continue to Delivery';
@@ -674,13 +780,16 @@
       if (toStep === 1) {
         currentUserData = null;
         document.getElementById('robloxUsername').value = '';
+        // Reset profile section
+        const profileSection = document.getElementById('profileSection');
+        const profileContent = document.getElementById('profileContent');
+        profileSection.style.display = 'none';
+        profileContent.innerHTML = '';
       } else if (toStep === 2) {
         currentEmailData = null;
         document.getElementById('emailAddress').value = '';
         document.getElementById('emailValidation').style.display = 'none';
         document.getElementById('emailAddress').className = '';
-      } else if (toStep === 3) {
-        // Just go back to email step, keep data
       }
       
       showStep(toStep);
