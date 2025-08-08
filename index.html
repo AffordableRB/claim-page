@@ -327,10 +327,42 @@
 
         // Update profile display
         const avatarImg = document.getElementById('profileAvatar');
+        const profileName = document.getElementById('profileName');
+        
+        // Set up avatar with fallback handling
+        avatarImg.onerror = function() {
+          console.log('Avatar failed to load, trying fallback...');
+          
+          // Try alternative avatar URLs
+          const fallbackUrls = [
+            `https://www.roblox.com/bust-thumbnail/image?userId=${currentUserData.userId}&width=150&height=150&format=png`,
+            `https://www.roblox.com/headshot-thumbnail/image?userId=${currentUserData.userId}&width=150&height=150&format=png`,
+            `https://tr.rbxcdn.com/38c6edcb50633730ff4cf39ac8859674/150/150/AvatarHeadshot/Png`
+          ];
+          
+          // Try the next fallback URL
+          const currentSrc = this.src;
+          const nextFallback = fallbackUrls.find(url => url !== currentSrc);
+          
+          if (nextFallback) {
+            console.log('Trying fallback URL:', nextFallback);
+            this.src = nextFallback;
+          } else {
+            // If all fails, create a placeholder
+            console.log('All avatar URLs failed, creating placeholder');
+            this.src = 'data:image/svg+xml,' + encodeURIComponent(`
+              <svg xmlns="http://www.w3.org/2000/svg" width="150" height="150" viewBox="0 0 150 150">
+                <rect width="150" height="150" fill="#4CAF50"/>
+                <text x="75" y="75" font-family="Arial" font-size="60" fill="white" text-anchor="middle" dominant-baseline="middle">👤</text>
+                <text x="75" y="110" font-family="Arial" font-size="12" fill="white" text-anchor="middle">${currentUserData.username}</text>
+              </svg>
+            `);
+          }
+        };
+        
         avatarImg.src = currentUserData.avatar;
         avatarImg.alt = `${userData.username}'s Avatar`;
-
-        document.getElementById('profileName').textContent = currentUserData.username;
+        profileName.textContent = currentUserData.username;
 
         showStep(2);
       } catch (error) {
