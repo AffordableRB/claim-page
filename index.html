@@ -34,11 +34,11 @@
       to { opacity: 1; transform: translateY(0); }
     }
     .logo {
-      width: 100px;
+      width: 200px; /* Doubled size */
       height: auto;
       margin: 0 auto 25px;
-      box-shadow: none;
-      border-radius: 0;
+      box-shadow: 0 8px 20px rgba(76, 175, 80, 0.3);
+      border-radius: 0; /* Removed circle */
       overflow: visible;
     }
     .logo img {
@@ -46,6 +46,7 @@
       height: auto;
       object-fit: contain;
       display: block;
+      border-radius: 0; /* Removed circle */
     }
     h1 {
       color: #333; margin-bottom: 10px;
@@ -229,13 +230,13 @@
       border: 1px solid #c8e6c9;
     }
     .note {
-      background: #cce0ff; /* lighter blue note background */
-      color: #0b3d91; /* darker blue text color */
+      background: #cce0ff; /* Changed to darker blue marketing color */
+      color: #004085;
       padding: 15px;
       border-radius: 10px;
       margin-top: 20px;
       font-size: 14px;
-      border-left: 4px solid #1952d4; /* darker blue border */
+      border-left: 4px solid #0056b3;
       grid-column: 1 / -1;
     }
     .debug-info {
@@ -320,7 +321,7 @@
 <body>
   <div class="container">
     <div class="logo">
-      <img src="https://cdn.shopify.com/s/files/1/0943/2311/4269/files/sittingon-Photoroom-Photoroom.png?v=1754625898" alt="Affordable Garden Raccoon Logo" />
+      <img src="https://cdn.shopify.com/s/files/1/0943/2311/4269/files/635faaf2-c052-483e-a3c8-8bf994184572.png?v=1753916171" alt="Affordable Garden Raccoon Logo" />
     </div>
     <h1>Affordable.Garden Delivery Page</h1>
     <p class="subtitle">User Verification</p>
@@ -420,7 +421,7 @@
       
       <button class="btn secondary" onclick="goBack(2)" style="margin-top: 10px;">Go Back</button>
 
-      <div class="note" style="margin-top: 20px; background: #cce0ff; color: #0b3d91; border-left: 4px solid #1952d4;">
+      <div class="note" style="margin-top: 20px; background: #cce0ff; color: #004085; border-left: 4px solid #0056b3;">
         <strong>Important:</strong> Please join the server and wait for a staff member to deliver your items. Keep this page open for reference.
       </div>
     </div>
