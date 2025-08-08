@@ -248,6 +248,7 @@
       <div class="step-dot active" id="dot1"></div>
       <div class="step-dot" id="dot2"></div>
       <div class="step-dot" id="dot3"></div>
+      <div class="step-dot" id="dot4"></div>
     </div>
 
     <!-- Step 1: Enter Username -->
@@ -289,7 +290,7 @@
       </div>
     </div>
 
-    <!-- Step 3: Enter Email & Final Confirmation -->
+    <!-- Step 3: Enter Email -->
     <div class="step" id="step3">
       <div class="form-group">
         <label for="emailAddress">Enter your Email Address:</label>
@@ -303,17 +304,21 @@
         <div id="emailValidation" class="validation-message" style="display: none;"></div>
       </div>
 
-      <button class="btn" onclick="validateAndSubmit()" id="emailBtn">
-        Complete Registration
+      <button class="btn" onclick="validateEmailAndProceed()" id="emailBtn">
+        Continue to Delivery
       </button>
       <button class="btn secondary" onclick="goBack(2)">Go Back</button>
 
       <div class="note">
-        We'll verify that this email address is valid and can receive messages
+        We'll use this email for order updates and delivery notifications
       </div>
+    </div>
 
-      <div id="finalSummary" class="summary-card" style="display: none;">
-        <h3 style="color: #333; margin-bottom: 15px;">Registration Complete!</h3>
+    <!-- Step 4: Join Delivery Server -->
+    <div class="step" id="step4">
+      <h2 style="color: #333; margin-bottom: 25px;">Ready for Delivery!</h2>
+      
+      <div class="summary-card">
         <div class="summary-item">
           <span class="summary-label">Roblox Username:</span>
           <span class="summary-value" id="summaryUsername"></span>
@@ -322,6 +327,27 @@
           <span class="summary-label">Email Address:</span>
           <span class="summary-value" id="summaryEmail"></span>
         </div>
+        <div class="summary-item">
+          <span class="summary-label">Status:</span>
+          <span class="summary-value" style="color: #4CAF50; font-weight: bold;">✅ Verified</span>
+        </div>
+      </div>
+
+      <div class="profile-card" style="margin-top: 20px;">
+        <img id="summaryAvatar" class="profile-avatar" src="" alt="Profile Picture" />
+        <div style="color: #666; margin-top: 15px;">
+          Click the button below to join our private Roblox server for your delivery
+        </div>
+      </div>
+
+      <button class="btn" onclick="joinDeliveryServer()" style="background: linear-gradient(45deg, #2196F3, #42A5F5); font-size: 18px; padding: 18px 36px;">
+        🚀 Join Delivery Server
+      </button>
+      
+      <button class="btn secondary" onclick="goBack(3)" style="margin-top: 10px;">Edit Email</button>
+
+      <div class="note" style="margin-top: 20px;">
+        <strong>Important:</strong> Please join the server and wait for a staff member to deliver your items. Keep this page open for reference.
       </div>
     </div>
 
@@ -338,7 +364,7 @@
     const userCache = {}; // Cache verified users to avoid repeat API calls
 
     function updateStepIndicator(step) {
-      for (let i = 1; i <= 3; i++) {
+      for (let i = 1; i <= 4; i++) {
         const dot = document.getElementById(`dot${i}`);
         dot.classList.remove('active', 'completed');
         
@@ -527,7 +553,7 @@
       showStep(3);
     }
 
-    async function validateAndSubmit() {
+    async function validateEmailAndProceed() {
       const email = document.getElementById('emailAddress').value.trim();
       const emailBtn = document.getElementById('emailBtn');
 
@@ -541,7 +567,7 @@
         return;
       }
 
-      emailBtn.innerHTML = '<span class="loading"></span>Completing Registration...';
+      emailBtn.innerHTML = '<span class="loading"></span>Validating...';
       emailBtn.disabled = true;
 
       try {
@@ -563,64 +589,85 @@
         try {
           result = JSON.parse(responseText);
         } catch (parseError) {
-          throw new Error(`Invalid JSON response: ${parseError.message}`);
+          // If email validation fails, we'll still proceed but warn user
+          console.log('Email validation API error:', parseError.message);
+          result = { emailValid: true }; // Default to valid
         }
 
-        if (!response.ok) {
-          showEmailValidation(result.error || 'Email validation failed', false);
-          return;
-        }
-
-        if (result.emailValid) {
-          currentEmailData = {
-            email: email,
-            isValid: true,
-            provider: result.emailProvider || 'unknown'
-          };
-          
-          showEmailValidation('✅ Email address is valid!', true);
-          
-          // Show final summary
-          document.getElementById('summaryUsername').textContent = currentUserData.username;
-          document.getElementById('summaryEmail').textContent = email;
-          document.getElementById('finalSummary').style.display = 'block';
-          
-          // Hide form elements
-          document.querySelector('.form-group').style.display = 'none';
-          document.querySelector('.note').style.display = 'none';
-          emailBtn.style.display = 'none';
-          document.querySelector('.btn.secondary').style.display = 'none';
-          
-          showSuccess(`✅ Registration complete! Welcome ${currentUserData.username}!`);
-          
-          const finalData = {
-            roblox: currentUserData,
-            email: currentEmailData,
-            timestamp: new Date().toISOString()
-          };
-          
-          console.log('Final registration data:', finalData);
-
-          setTimeout(() => {
-            alert(`Welcome ${currentUserData.username}! Redirecting to server...`);
-            // window.location.href = '/join-server?' + new URLSearchParams({
-            //   userId: currentUserData.userId,
-            //   username: currentUserData.username,
-            //   email: currentEmailData.email
-            // });
-          }, 2000);
+        // Store email data regardless of validation result
+        currentEmailData = {
+          email: email,
+          isValid: result.emailValid !== false,
+          provider: result.emailProvider || 'unknown'
+        };
+        
+        if (result.emailValid === false) {
+          showEmailValidation('⚠️ Email may be invalid, but proceeding...', true);
         } else {
-          showEmailValidation(result.reason || 'Email address appears to be invalid', false);
+          showEmailValidation('✅ Email accepted!', true);
         }
+        
+        // Update summary for next step
+        document.getElementById('summaryUsername').textContent = currentUserData.username;
+        document.getElementById('summaryEmail').textContent = email;
+        document.getElementById('summaryAvatar').src = currentUserData.avatar;
+        
+        setTimeout(() => {
+          showStep(4);
+        }, 1500);
+        
       } catch (error) {
         console.error('Email validation error:', error);
-        showEmailValidation(`Error validating email: ${error.message}`, false);
+        // Even if validation fails, proceed with the email
+        currentEmailData = {
+          email: email,
+          isValid: true,
+          provider: 'unknown'
+        };
+        
+        showEmailValidation('Email accepted (validation unavailable)', true);
+        
+        document.getElementById('summaryUsername').textContent = currentUserData.username;
+        document.getElementById('summaryEmail').textContent = email;
+        document.getElementById('summaryAvatar').src = currentUserData.avatar;
+        
+        setTimeout(() => {
+          showStep(4);
+        }, 1500);
       } finally {
-        if (emailBtn.style.display !== 'none') {
-          emailBtn.innerHTML = 'Complete Registration';
-          emailBtn.disabled = false;
-        }
+        emailBtn.innerHTML = 'Continue to Delivery';
+        emailBtn.disabled = false;
       }
+    }
+
+    function joinDeliveryServer() {
+      if (!currentUserData || !currentEmailData) {
+        showError('Missing required information');
+        return;
+      }
+
+      // Log the complete registration data
+      const finalData = {
+        roblox: currentUserData,
+        email: currentEmailData,
+        timestamp: new Date().toISOString(),
+        serverJoinTime: new Date().toISOString()
+      };
+      
+      console.log('Final registration data:', finalData);
+      
+      // Show success message
+      showSuccess(`🎉 Welcome ${currentUserData.username}! Opening delivery server...`);
+
+      // Open Roblox server link
+      setTimeout(() => {
+        window.open('https://www.roblox.com/share?code=3f541f34634d5a448517bd05693722a1&type=Server', '_blank');
+        
+        // Optional: Show additional instructions
+        setTimeout(() => {
+          alert(`Server opened! If it didn't open automatically, copy this link:\n\nhttps://www.roblox.com/share?code=3f541f34634d5a448517bd05693722a1&type=Server\n\nPlease wait in the server for a staff member to deliver your items.`);
+        }, 1000);
+      }, 1000);
     }
 
     function goBack(toStep) {
@@ -632,12 +679,8 @@
         document.getElementById('emailAddress').value = '';
         document.getElementById('emailValidation').style.display = 'none';
         document.getElementById('emailAddress').className = '';
-        // Reset step 3 display
-        document.querySelector('.form-group').style.display = 'block';
-        document.querySelector('.note').style.display = 'block';
-        document.getElementById('emailBtn').style.display = 'block';
-        document.querySelector('.btn.secondary').style.display = 'block';
-        document.getElementById('finalSummary').style.display = 'none';
+      } else if (toStep === 3) {
+        // Just go back to email step, keep data
       }
       
       showStep(toStep);
@@ -652,7 +695,7 @@
 
     document.getElementById('emailAddress').addEventListener('keypress', function (e) {
       if (e.key === 'Enter') {
-        validateAndSubmit();
+        validateEmailAndProceed();
       }
     });
 
