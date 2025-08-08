@@ -88,15 +88,26 @@ async function handleOrderVerification(req, res, orderNumber, email) {
     }
 
     // Search for the order in Shopify
-    const order = await findShopifyOrder(cleanOrderNumber, cleanEmail);
+    const searchResult = await findShopifyOrder(cleanOrderNumber, cleanEmail);
     
-    if (!order) {
+    if (!searchResult) {
       console.log('❌ No matching order found');
       return res.status(404).json({ 
-        error: 'Order not found or email does not match',
-        details: 'Please check your order number and email address'
+        error: 'Order not found',
+        details: 'Please check your order number and try again'
       });
     }
+
+    // Check if order was found but email doesn't match
+    if (!searchResult.emailMatch) {
+      console.log('❌ Order found but email mismatch');
+      return res.status(400).json({ 
+        error: 'Email does not match the order number',
+        details: 'The order number exists but is associated with a different email address. Please check your email and try again.'
+      });
+    }
+
+    const order = searchResult.order;
 
     // Verify order is valid for delivery
     const validationResult = validateOrderForDelivery(order);
@@ -155,6 +166,8 @@ async function findShopifyOrder(orderNumber, email) {
     });
   }
 
+  let foundOrderWithWrongEmail = null;
+
   for (const query of searchQueries) {
     try {
       console.log(`Searching Shopify for order: ${query}`);
@@ -182,9 +195,11 @@ async function findShopifyOrder(orderNumber, email) {
         // Verify email matches
         if (order.email && order.email.toLowerCase() === email) {
           console.log(`✅ Found matching order: ${order.name}`);
-          return order;
+          return { order, emailMatch: true };
         } else {
           console.log(`❌ Order found but email doesn't match: ${order.email} vs ${email}`);
+          foundOrderWithWrongEmail = order;
+          // Continue searching in case there's another order with the same number but correct email
         }
       }
       
@@ -221,12 +236,17 @@ async function findShopifyOrder(orderNumber, email) {
         
         if (matchingOrder) {
           console.log(`✅ Found matching order via email search: ${matchingOrder.name}`);
-          return matchingOrder;
+          return { order: matchingOrder, emailMatch: true };
         }
       }
     }
   } catch (error) {
     console.error('Error searching by email:', error);
+  }
+
+  // If we found an order with the right number but wrong email, return that info
+  if (foundOrderWithWrongEmail) {
+    return { order: foundOrderWithWrongEmail, emailMatch: false };
   }
 
   return null;
@@ -251,24 +271,40 @@ function validateOrderForDelivery(order) {
     };
   }
 
-  // Check if order contains digital/deliverable items
-  // You might want to add specific product tags or types here
-  const hasDigitalItems = order.line_items.some(item => {
-    return item.title.toLowerCase().includes('roblox') ||
-           item.title.toLowerCase().includes('digital') ||
-           item.variant_title?.toLowerCase().includes('digital') ||
-           (item.properties && item.properties.some(prop => 
-             prop.name.toLowerCase().includes('digital') ||
-             prop.name.toLowerCase().includes('roblox')
-           ));
-  });
-
-  if (!hasDigitalItems) {
+  // Check if order is not already fulfilled
+  if (order.fulfillment_status === 'fulfilled') {
     return {
       valid: false,
-      reason: 'No digital items found in this order',
-      details: 'This delivery system is only for digital Roblox items'
+      reason: 'Order has already been fulfilled',
+      details: 'This order has already been delivered and cannot be claimed again'
     };
+  }
+
+  // Check if order has been refunded
+  if (order.financial_status === 'refunded' || order.financial_status === 'partially_refunded') {
+    return {
+      valid: false,
+      reason: 'Order has been refunded',
+      details: 'Refunded orders are not eligible for delivery'
+    };
+  }
+
+  // Additional check for any refund transactions
+  if (order.refunds && order.refunds.length > 0) {
+    const totalRefunded = order.refunds.reduce((sum, refund) => {
+      return sum + parseFloat(refund.amount || 0);
+    }, 0);
+    
+    const totalPrice = parseFloat(order.total_price || 0);
+    
+    // If fully refunded
+    if (totalRefunded >= totalPrice) {
+      return {
+        valid: false,
+        reason: 'Order has been fully refunded',
+        details: 'Fully refunded orders are not eligible for delivery'
+      };
+    }
   }
 
   return { valid: true };
