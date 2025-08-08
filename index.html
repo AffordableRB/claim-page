@@ -3,13 +3,17 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Grow a Garden - User Verification</title>
+  <title>Affordable.Garden Delivery Page</title>
+  
+  <!-- Load Poppins font -->
+  <link href="https://fonts.googleapis.com/css2?family=Poppins&display=swap" rel="stylesheet" />
+  
   <style>
     * {
       margin: 0; padding: 0; box-sizing: border-box;
     }
     body {
-      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      font-family: 'Poppins', sans-serif;
       background: linear-gradient(135deg, #4CAF50 0%, #2E7D32 100%);
       min-height: 100vh;
       display: flex; align-items: center; justify-content: center;
@@ -30,13 +34,18 @@
       to { opacity: 1; transform: translateY(0); }
     }
     .logo {
-      width: 100px; height: 100px;
-      background: linear-gradient(45deg, #4CAF50, #66BB6A);
-      border-radius: 50%;
+      width: 100px;
+      height: 100px;
       margin: 0 auto 25px;
-      display: flex; align-items: center; justify-content: center;
-      font-size: 40px; color: white;
+      border-radius: 50%;
+      overflow: hidden;
       box-shadow: 0 8px 20px rgba(76, 175, 80, 0.3);
+    }
+    .logo img {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      display: block;
     }
     h1 {
       color: #333; margin-bottom: 10px;
@@ -310,8 +319,10 @@
 </head>
 <body>
   <div class="container">
-    <div class="logo">🌱</div>
-    <h1>Grow a Garden</h1>
+    <div class="logo">
+      <img src="https://cdn.shopify.com/s/files/1/0943/2311/4269/files/635faaf2-c052-483e-a3c8-8bf994184572.png?v=1753916171" alt="Affordable Garden Raccoon Logo" />
+    </div>
+    <h1>Affordable.Garden Delivery Page</h1>
     <p class="subtitle">User Verification</p>
 
     <div class="step-indicator">
