@@ -52,12 +52,21 @@ export default async function handler(req, res) {
           if (exactMatch) {
             console.log('Found exact match:', exactMatch);
             
-            // Step 2: Get avatar using multiple methods
+            // Step 2: Get avatar using multiple methods with rate limit handling
             let avatarUrl = null;
             
-            // Method 1: Try the thumbnails API
+            // Method 1: Try the thumbnails API with delay
             try {
-              const avatarResponse = await fetch(`https://thumbnails.roblox.com/v1/users/avatar-headshot?userIds=${exactMatch.id}&size=150x150&format=Png&isCircular=false`);
+              // Add small delay to avoid rate limiting
+              await new Promise(resolve => setTimeout(resolve, 100));
+              
+              const avatarResponse = await fetch(`https://thumbnails.roblox.com/v1/users/avatar-headshot?userIds=${exactMatch.id}&size=150x150&format=Png&isCircular=false`, {
+                headers: {
+                  'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+                  'Cache-Control': 'no-cache'
+                }
+              });
+              
               if (avatarResponse.ok) {
                 const avatarData = await avatarResponse.json();
                 console.log('Avatar API response:', avatarData);
@@ -69,17 +78,10 @@ export default async function handler(req, res) {
               console.log('Avatar API failed:', avatarError.message);
             }
             
-            // Method 2: Try alternative avatar URL formats
+            // Method 2: Fallback avatar URLs with cache busting
             if (!avatarUrl) {
-              const alternativeUrls = [
-                `https://www.roblox.com/headshot-thumbnail/image?userId=${exactMatch.id}&width=150&height=150&format=png`,
-                `https://www.roblox.com/bust-thumbnail/image?userId=${exactMatch.id}&width=150&height=150&format=png`,
-                `https://thumbnails.roblox.com/v1/users/avatar?userIds=${exactMatch.id}&size=150x150&format=Png`,
-                `https://tr.rbxcdn.com/38c6edcb50633730ff4cf39ac8859674/150/150/AvatarHeadshot/Png`
-              ];
-              
-              // Just use the first fallback for now
-              avatarUrl = alternativeUrls[0];
+              const timestamp = Date.now();
+              avatarUrl = `https://www.roblox.com/headshot-thumbnail/image?userId=${exactMatch.id}&width=150&height=150&format=png&v=${timestamp}`;
             }
             
             console.log('Final avatar URL:', avatarUrl);
