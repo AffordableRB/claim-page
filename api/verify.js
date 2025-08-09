@@ -2,107 +2,20 @@ import crypto from 'crypto';
 
 const DEBUG_MODE = process.env.NODE_ENV === 'development';
 
-// Manual JWT creation without external dependencies
-function base64UrlEncode(str) {
-  return Buffer.from(str)
-    .toString('base64')
-    .replace(/\+/g, '-')
-    .replace(/\//g, '_')
-    .replace(/=/g, '');
-}
-
-function createManualJWT(serviceEmail, privateKey) {
-  const now = Math.floor(Date.now() / 1000);
-  
-  const header = {
-    alg: 'RS256',
-    typ: 'JWT'
-  };
-  
-  const payload = {
-    iss: serviceEmail,
-    scope: 'https://www.googleapis.com/auth/spreadsheets',
-    aud: 'https://oauth2.googleapis.com/token',
-    exp: now + 3600, // 1 hour
-    iat: now
-  };
-  
-  const encodedHeader = base64UrlEncode(JSON.stringify(header));
-  const encodedPayload = base64UrlEncode(JSON.stringify(payload));
-  const signatureInput = `${encodedHeader}.${encodedPayload}`;
-  
-  // Clean the private key
-  let cleanPrivateKey = privateKey;
-  if (cleanPrivateKey.includes('\\n')) {
-    cleanPrivateKey = cleanPrivateKey.replace(/\\n/g, '\n');
-  }
-  cleanPrivateKey = cleanPrivateKey.replace(/^["']|["']$/g, '');
-  
-  // Create signature
-  const signature = crypto.sign('RSA-SHA256', Buffer.from(signatureInput), cleanPrivateKey);
-  const encodedSignature = signature.toString('base64')
-    .replace(/\+/g, '-')
-    .replace(/\//g, '_')
-    .replace(/=/g, '');
-  
-  return `${encodedHeader}.${encodedPayload}.${encodedSignature}`;
-}
-
-async function getGoogleAccessToken(serviceEmail, privateKey) {
-  try {
-    const jwt = createManualJWT(serviceEmail, privateKey);
-    
-    const response = await fetch('https://oauth2.googleapis.com/token', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
-      },
-      body: new URLSearchParams({
-        grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer',
-        assertion: jwt
-      })
-    });
-    
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('OAuth token error:', response.status, errorText);
-      throw new Error(`Failed to get access token: ${response.status}`);
-    }
-    
-    const tokenData = await response.json();
-    return tokenData.access_token;
-    
-  } catch (error) {
-    console.error('JWT creation error:', error);
-    throw new Error(`Failed to create access token: ${error.message}`);
-  }
-}
-
-// Google Sheets Integration Functions
+// NEW: Google Sheets Integration Functions
 async function saveToGoogleSheets(deliveryData) {
-  // Check for required environment variables
   if (!process.env.GOOGLE_SHEETS_SPREADSHEET_ID || 
       !process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL || 
       !process.env.GOOGLE_PRIVATE_KEY) {
-    
-    console.error('❌ Missing Google Sheets environment variables:', {
-      hasSpreadsheetId: !!process.env.GOOGLE_SHEETS_SPREADSHEET_ID,
-      hasServiceEmail: !!process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL,
-      hasPrivateKey: !!process.env.GOOGLE_PRIVATE_KEY
-    });
-    
-    throw new Error('Google Sheets not configured - missing environment variables');
+    console.error('❌ Missing Google Sheets environment variables');
+    throw new Error('Google Sheets not configured');
   }
 
   try {
     console.log('📊 Saving to Google Sheets...');
-    console.log('Delivery data received:', JSON.stringify(deliveryData, null, 2));
     
-    // Get access token using manual JWT
-    const accessToken = await getGoogleAccessToken(
-      process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL,
-      process.env.GOOGLE_PRIVATE_KEY
-    );
+    // Create JWT token for Google Sheets API
+    const jwt = await createGoogleJWT();
     
     // Prepare the row data
     const registrationId = generateDeliveryId();
@@ -111,51 +24,39 @@ async function saveToGoogleSheets(deliveryData) {
     const rowData = [
       registrationId,                                    // A: Registration ID
       timestamp,                                         // B: Timestamp
-      deliveryData.order?.orderNumber || 'N/A',         // C: Order Number
-      deliveryData.order?.email || 'N/A',               // D: Customer Email
-      deliveryData.roblox?.username || 'N/A',           // E: Roblox Username
-      deliveryData.roblox?.userId || 'N/A',             // F: Roblox User ID
-      deliveryData.order?.items || 'Digital Items',      // G: Order Items
-      deliveryData.order?.total || 'N/A',               // H: Order Total
+      deliveryData.order.orderNumber || 'N/A',         // C: Order Number
+      deliveryData.order.email || 'N/A',               // D: Customer Email
+      deliveryData.roblox.username || 'N/A',           // E: Roblox Username
+      deliveryData.roblox.userId || 'N/A',             // F: Roblox User ID
+      deliveryData.order.items || 'Digital Items',      // G: Order Items
+      deliveryData.order.total || 'N/A',               // H: Order Total
       'Pending Delivery',                                // I: Status
       '',                                                // J: Delivery Notes (empty for now)
       deliveryData.serverJoinTime || timestamp          // K: Server Join Time
     ];
 
-    console.log('Row data to be inserted:', rowData);
-
     // Append to Google Sheets
-    const sheetsUrl = `https://sheets.googleapis.com/v4/spreadsheets/${process.env.GOOGLE_SHEETS_SPREADSHEET_ID}/values/Sheet1:append?valueInputOption=RAW`;
-    console.log('Making request to:', sheetsUrl);
-    
-    const response = await fetch(sheetsUrl, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${accessToken}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        values: [rowData]
-      })
-    });
-
-    const responseText = await response.text();
-    console.log('Google Sheets API response status:', response.status);
-    console.log('Google Sheets API response:', responseText);
+    const response = await fetch(
+      `https://sheets.googleapis.com/v4/spreadsheets/${process.env.GOOGLE_SHEETS_SPREADSHEET_ID}/values/Sheet1:append?valueInputOption=RAW`,
+      {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${jwt}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          values: [rowData]
+        })
+      }
+    );
 
     if (!response.ok) {
-      console.error('❌ Google Sheets API Error:', response.status, responseText);
-      throw new Error(`Google Sheets API error: ${response.status} - ${responseText}`);
+      const errorData = await response.text();
+      console.error('❌ Google Sheets API Error:', response.status, errorData);
+      throw new Error(`Google Sheets API error: ${response.status}`);
     }
 
-    let result;
-    try {
-      result = JSON.parse(responseText);
-    } catch (parseError) {
-      console.error('Failed to parse Google Sheets response:', parseError);
-      throw new Error('Invalid response from Google Sheets API');
-    }
-
+    const result = await response.json();
     console.log('✅ Successfully saved to Google Sheets:', result.updates);
     
     return {
@@ -171,6 +72,25 @@ async function saveToGoogleSheets(deliveryData) {
   }
 }
 
+async function createGoogleJWT() {
+  const { JWT } = await import('google-auth-library');
+  
+  // Clean up the private key - remove extra quotes and fix line breaks
+  const privateKey = process.env.GOOGLE_PRIVATE_KEY
+    .replace(/\\n/g, '\n')
+    .replace(/^"/, '')
+    .replace(/"$/, '');
+
+  const client = new JWT({
+    email: process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL,
+    key: privateKey,
+    scopes: ['https://www.googleapis.com/auth/spreadsheets'],
+  });
+
+  const tokens = await client.authorize();
+  return tokens.access_token;
+}
+
 function generateDeliveryId() {
   const timestamp = Date.now();
   const random = Math.random().toString(36).substr(2, 6).toUpperCase();
@@ -179,44 +99,23 @@ function generateDeliveryId() {
 
 async function handleDeliveryRegistration(req, res, deliveryData) {
   console.log('📦 Processing Delivery Registration...');
-  console.log('Received delivery data:', JSON.stringify(deliveryData, null, 2));
   
   try {
     // Validate required data
-    if (!deliveryData) {
-      console.error('No delivery data provided');
-      return res.status(400).json({ 
-        error: 'No delivery data provided',
-        canContinue: true
-      });
-    }
-
     if (!deliveryData.order || !deliveryData.roblox) {
-      console.error('Missing required delivery data:', {
-        hasOrder: !!deliveryData.order,
-        hasRoblox: !!deliveryData.roblox
-      });
-      
       return res.status(400).json({ 
         error: 'Missing required delivery data',
-        required: ['order', 'roblox'],
-        received: {
-          hasOrder: !!deliveryData.order,
-          hasRoblox: !!deliveryData.roblox
-        },
-        canContinue: true
+        required: ['order', 'roblox']
       });
     }
 
     // Save to Google Sheets
-    console.log('Attempting to save to Google Sheets...');
     const sheetResult = await saveToGoogleSheets(deliveryData);
-    console.log('Google Sheets save result:', sheetResult);
     
     // Prepare response
     const registrationRecord = {
       registrationId: sheetResult.registrationId,
-      timestamp: deliveryData.timestamp || new Date().toISOString(),
+      timestamp: deliveryData.timestamp,
       order: {
         orderNumber: deliveryData.order.orderNumber,
         email: deliveryData.order.email,
@@ -248,16 +147,84 @@ async function handleDeliveryRegistration(req, res, deliveryData) {
     return res.status(500).json({ 
       error: 'Failed to save delivery request',
       message: error.message,
-      canContinue: true,
-      details: DEBUG_MODE ? error.stack : undefined
+      canContinue: true // Let frontend know user can still proceed
     });
   }
 }
 
-// FIXED ORDER VERIFICATION FUNCTION
+// MAIN HANDLER (Updated)
+export default async function handler(req, res) {
+  // Set CORS headers
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+
+  if (req.method === 'OPTIONS') {
+    return res.status(200).end();
+  }
+
+  if (req.method !== 'POST') {
+    return res.status(405).json({ error: 'Method Not Allowed' });
+  }
+
+  try {
+    const { orderNumber, email, username, action, deliveryData } = req.body;
+    
+    console.log('API Request received:', { 
+      orderNumber: !!orderNumber, 
+      email: !!email, 
+      username: !!username, 
+      action: action || 'none',
+      hasDeliveryData: !!deliveryData
+    });
+
+    // Method 1: Check by action parameter
+    if (action === 'verify_order' && orderNumber && email) {
+      return await handleOrderVerification(req, res, orderNumber, email);
+    }
+    
+    if (action === 'verify_username' && username) {
+      return await handleUsernameVerification(req, res, username);
+    }
+
+    // NEW: Handle delivery registration
+    if (action === 'register_delivery' && deliveryData) {
+      return await handleDeliveryRegistration(req, res, deliveryData);
+    }
+
+    // Method 2: Fallback - determine by parameters present
+    if (orderNumber && email && !username) {
+      console.log('Detected order verification request');
+      return await handleOrderVerification(req, res, orderNumber, email);
+    }
+    
+    if (username && !orderNumber && !email) {
+      console.log('Detected username verification request');
+      return await handleUsernameVerification(req, res, username);
+    }
+
+    // If we get here, the request format is wrong
+    console.log('Invalid request format');
+    return res.status(400).json({ 
+      error: 'Invalid request parameters',
+      received: { orderNumber: !!orderNumber, email: !!email, username: !!username, action, hasDeliveryData: !!deliveryData },
+      expected: 'Either (orderNumber + email) for order verification, (username) for Roblox verification, or (deliveryData) for delivery registration'
+    });
+
+  } catch (error) {
+    console.error('Unexpected API error:', error);
+    return res.status(500).json({ 
+      error: 'Internal server error',
+      message: error.message
+    });
+  }
+}
+
+// EXISTING FUNCTIONS (Unchanged)
 async function handleOrderVerification(req, res, orderNumber, email) {
   console.log(`🔍 Shopify Order Verification: ${orderNumber} for ${email}`);
   
+  // Input validation
   if (!orderNumber || !email) {
     return res.status(400).json({ error: 'Order number and email are required' });
   }
@@ -265,18 +232,20 @@ async function handleOrderVerification(req, res, orderNumber, email) {
   const cleanOrderNumber = orderNumber.trim();
   const cleanEmail = email.toLowerCase().trim();
 
+  // Basic email format validation
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   if (!emailRegex.test(cleanEmail)) {
     return res.status(400).json({ error: 'Invalid email format' });
   }
 
   try {
+    // Check if we have required environment variables
     if (!process.env.SHOPIFY_SHOP_DOMAIN || !process.env.SHOPIFY_ACCESS_TOKEN) {
       console.error('Missing Shopify credentials');
       return res.status(500).json({ error: 'Server configuration error' });
     }
 
-    console.log('Searching for order:', cleanOrderNumber, 'with email:', cleanEmail);
+    // Search for the order in Shopify
     const searchResult = await findShopifyOrder(cleanOrderNumber, cleanEmail);
     
     if (!searchResult) {
@@ -287,23 +256,18 @@ async function handleOrderVerification(req, res, orderNumber, email) {
       });
     }
 
+    // Check if order was found but email doesn't match
     if (!searchResult.emailMatch) {
       console.log('❌ Order found but email mismatch');
-      console.log('Expected email:', cleanEmail);
-      console.log('Order email:', searchResult.order.email);
-      
       return res.status(400).json({ 
         error: 'Email does not match the order number',
-        details: `The order number exists but is associated with a different email address. Please check your email and try again.`,
-        debug: DEBUG_MODE ? {
-          inputEmail: cleanEmail,
-          orderEmail: searchResult.order.email,
-          orderNumber: searchResult.order.name
-        } : undefined
+        details: 'The order number exists but is associated with a different email address. Please check your email and try again.'
       });
     }
 
     const order = searchResult.order;
+
+    // Verify order is valid for delivery
     const validationResult = validateOrderForDelivery(order);
     if (!validationResult.valid) {
       return res.status(400).json({ 
@@ -314,6 +278,7 @@ async function handleOrderVerification(req, res, orderNumber, email) {
 
     console.log('✅ Order verification successful:', order.name);
 
+    // Return successful verification
     return res.status(200).json({
       orderNumber: order.name,
       email: cleanEmail,
@@ -337,237 +302,46 @@ async function handleOrderVerification(req, res, orderNumber, email) {
   }
 }
 
-// USERNAME VERIFICATION FUNCTION
-async function handleUsernameVerification(req, res, username) {
-  console.log(`🎮 Roblox Username Verification: ${username}`);
-  
-  if (!username || typeof username !== 'string' || username.trim() === '') {
-    return res.status(400).json({ error: 'Username is required' });
-  }
-
-  const cleanUsername = username.trim();
-  
-  if (cleanUsername.length < 3 || cleanUsername.length > 20) {
-    return res.status(400).json({ error: 'Username must be between 3-20 characters' });
-  }
-
-  if (!/^[a-zA-Z0-9_]+$/.test(cleanUsername)) {
-    return res.status(400).json({ error: 'Username can only contain letters, numbers, and underscores' });
-  }
-
-  try {
-    const usernameToIdResponse = await fetch('https://users.roblox.com/v1/usernames/users', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        usernames: [cleanUsername],
-        excludeBannedUsers: true
-      })
-    });
-    
-    if (usernameToIdResponse.ok) {
-      const usernameData = await usernameToIdResponse.json();
-      
-      if (usernameData.data && usernameData.data.length > 0) {
-        const userData = usernameData.data[0];
-        
-        if (userData.name && userData.name.toLowerCase() === cleanUsername.toLowerCase()) {
-          let avatarUrl = `https://www.roblox.com/headshot-thumbnail/image?userId=${userData.id}&width=150&height=150&format=png&v=${Date.now()}`;
-          
-          try {
-            const avatarResponse = await fetch(`https://thumbnails.roblox.com/v1/users/avatar-headshot?userIds=${userData.id}&size=150x150&format=Png&isCircular=false`);
-            if (avatarResponse.ok) {
-              const avatarData = await avatarResponse.json();
-              if (avatarData.data && avatarData.data[0] && avatarData.data[0].imageUrl) {
-                avatarUrl = avatarData.data[0].imageUrl;
-              }
-            }
-          } catch (avatarError) {
-            console.log('Avatar API failed, using fallback URL');
-          }
-
-          return res.status(200).json({
-            userId: userData.id.toString(),
-            username: userData.name,
-            avatarUrl: avatarUrl,
-            method: 'username-to-id-api'
-          });
-        }
-      }
-    }
-  } catch (apiError) {
-    console.error('❌ Username-to-ID API error:', apiError.message);
-  }
-
-  return res.status(404).json({ 
-    error: `User "${cleanUsername}" not found. Please check the spelling and try again.`
-  });
-}
-
-// MAIN HANDLER
-export default async function handler(req, res) {
-  console.log('=== API REQUEST START ===');
-  console.log('Method:', req.method);
-  console.log('Body:', JSON.stringify(req.body, null, 2));
-  
-  // Add debug endpoint for testing Shopify connection
-  if (req.body?.action === 'debug_shopify') {
-    try {
-      const testUrl = `https://${process.env.SHOPIFY_SHOP_DOMAIN}/admin/api/2024-01/orders.json?limit=1`;
-      const testResponse = await fetch(testUrl, {
-        headers: {
-          'X-Shopify-Access-Token': process.env.SHOPIFY_ACCESS_TOKEN,
-          'Content-Type': 'application/json'
-        }
-      });
-      
-      const testData = await testResponse.json();
-      return res.json({
-        shopifyConnection: testResponse.ok,
-        status: testResponse.status,
-        hasOrders: testData.orders?.length > 0,
-        sampleOrder: testData.orders?.[0] ? {
-          name: testData.orders[0].name,
-          email: testData.orders[0].email,
-          id: testData.orders[0].id
-        } : null,
-        envVars: {
-          hasShopDomain: !!process.env.SHOPIFY_SHOP_DOMAIN,
-          hasAccessToken: !!process.env.SHOPIFY_ACCESS_TOKEN,
-          shopDomain: process.env.SHOPIFY_SHOP_DOMAIN
-        }
-      });
-    } catch (error) {
-      return res.json({ error: error.message, shopifyConnection: false });
-    }
-  }
-  
-  // Set CORS headers
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-
-  if (req.method === 'OPTIONS') {
-    console.log('Handling OPTIONS request');
-    return res.status(200).end();
-  }
-
-  if (req.method !== 'POST') {
-    console.log('Method not allowed:', req.method);
-    return res.status(405).json({ error: 'Method Not Allowed' });
-  }
-
-  try {
-    // Ensure req.body exists and handle parsing issues
-    if (!req.body) {
-      console.error('No request body received');
-      return res.status(400).json({ error: 'No request body provided' });
-    }
-
-    const { orderNumber, email, username, action, deliveryData } = req.body;
-    
-    console.log('Raw request body:', req.body);
-    console.log('API Request parsed:', { 
-      orderNumber: !!orderNumber, 
-      email: !!email, 
-      username: !!username, 
-      action: action || 'none',
-      hasDeliveryData: !!deliveryData
-    });
-
-    // Handle different actions
-    if (action === 'verify_order' && orderNumber && email) {
-      console.log('Routing to order verification');
-      return await handleOrderVerification(req, res, orderNumber, email);
-    }
-    
-    if (action === 'verify_username' && username) {
-      console.log('Routing to username verification');
-      return await handleUsernameVerification(req, res, username);
-    }
-
-    // Handle delivery registration
-    if (action === 'register_delivery') {
-      console.log('Routing to delivery registration');
-      return await handleDeliveryRegistration(req, res, deliveryData);
-    }
-
-    // Fallback routing based on parameters
-    if (orderNumber && email && !username && !deliveryData) {
-      console.log('Fallback: Detected order verification request');
-      return await handleOrderVerification(req, res, orderNumber, email);
-    }
-    
-    if (username && !orderNumber && !email && !deliveryData) {
-      console.log('Fallback: Detected username verification request');
-      return await handleUsernameVerification(req, res, username);
-    }
-
-    // If we get here, the request format is wrong
-    console.log('Invalid request format - no matching handler');
-    return res.status(400).json({ 
-      error: 'Invalid request parameters',
-      received: { 
-        orderNumber: !!orderNumber, 
-        email: !!email, 
-        username: !!username, 
-        action, 
-        hasDeliveryData: !!deliveryData 
-      },
-      expected: 'Either (orderNumber + email) for order verification, (username) for Roblox verification, or (action: "register_delivery" + deliveryData) for delivery registration'
-    });
-
-  } catch (error) {
-    console.error('Unexpected API error:', error);
-    return res.status(500).json({ 
-      error: 'Internal server error',
-      message: error.message,
-      stack: DEBUG_MODE ? error.stack : undefined
-    });
-  } finally {
-    console.log('=== API REQUEST END ===');
-  }
-}
-
-// FIXED SHOPIFY ORDER SEARCH FUNCTION
 async function findShopifyOrder(orderNumber, email) {
   const shopDomain = process.env.SHOPIFY_SHOP_DOMAIN;
   const accessToken = process.env.SHOPIFY_ACCESS_TOKEN;
   const apiVersion = process.env.SHOPIFY_API_VERSION || '2024-01';
   
-  console.log('🏪 Shopify Config:', {
-    shopDomain: shopDomain || 'MISSING',
-    hasAccessToken: !!accessToken,
-    apiVersion
-  });
-  
+  // Shopify order numbers can have different formats
+  // They might be #1001, AF1001, AG-1004, or just 1001
   const searchQueries = [
     orderNumber,
-    orderNumber.replace(/^#/, ''),
-    `#${orderNumber.replace(/^#/, '')}`,
-    orderNumber.replace(/^AG-/, ''),
-    `AG-${orderNumber.replace(/^(AG-|#)/, '')}`,
-    orderNumber.replace(/^AF/, ''),
-    `AF${orderNumber.replace(/^(AF|AG-|#)/, '')}`
+    orderNumber.replace(/^#/, ''), // Remove # if present
+    `#${orderNumber.replace(/^#/, '')}`, // Add # if not present
+    // Handle AG- format specifically
+    orderNumber.replace(/^AG-/, ''), // Remove AG- if present
+    `AG-${orderNumber.replace(/^(AG-|#)/, '')}`, // Add AG- if not present
+    // Handle other common prefixes
+    orderNumber.replace(/^AF/, ''), // Remove AF if present
+    `AF${orderNumber.replace(/^(AF|AG-|#)/, '')}` // Add AF if not present
   ];
 
+  // Remove duplicates from search queries
   const uniqueSearchQueries = [...new Set(searchQueries)];
-  console.log('📝 All search queries:', uniqueSearchQueries);
-  
-  let foundOrderWithWrongEmail = null;
-  let totalOrdersChecked = 0;
 
-  // Clean and normalize the input email for comparison
-  const normalizedInputEmail = email.toLowerCase().trim();
-  console.log('🔍 Searching for order with email:', normalizedInputEmail);
+  if (DEBUG_MODE) {
+    console.log('🐛 DEBUG: Order search details:', {
+      originalOrderNumber: orderNumber,
+      searchQueries: uniqueSearchQueries,
+      shopDomain,
+      hasAccessToken: !!accessToken,
+      email
+    });
+  }
+
+  let foundOrderWithWrongEmail = null;
 
   for (const query of uniqueSearchQueries) {
     try {
-      console.log('🔎 Searching with query:', query);
+      console.log(`Searching Shopify for order: ${query}`);
+      
+      // Method 1: Search by order name
       const nameSearchUrl = `https://${shopDomain}/admin/api/${apiVersion}/orders.json?name=${encodeURIComponent(query)}&limit=1`;
-      console.log('🌐 Request URL:', nameSearchUrl);
       
       const response = await fetch(nameSearchUrl, {
         headers: {
@@ -576,66 +350,72 @@ async function findShopifyOrder(orderNumber, email) {
         }
       });
 
-      console.log('📡 Response status:', response.status);
-
       if (!response.ok) {
-        const errorText = await response.text();
-        console.error('❌ API response not OK:', {
-          status: response.status,
-          statusText: response.statusText,
-          error: errorText
-        });
+        console.error(`Shopify API error for query ${query}: ${response.status}`);
         continue;
       }
 
       const data = await response.json();
-      console.log('📦 Orders found for query:', data.orders?.length || 0);
       
       if (data.orders && data.orders.length > 0) {
         const order = data.orders[0];
-        totalOrdersChecked++;
         
-        console.log('🎯 Found order details:', {
-          name: order.name,
-          id: order.id,
-          email: order.email,
-          financialStatus: order.financial_status,
-          fulfillmentStatus: order.fulfillment_status
-        });
-        
-        // More robust email comparison
-        if (order.email) {
-          const normalizedOrderEmail = order.email.toLowerCase().trim();
-          console.log('📧 Comparing emails:');
-          console.log('  Input email (normalized):', normalizedInputEmail);
-          console.log('  Order email (normalized):', normalizedOrderEmail);
-          console.log('  Match:', normalizedOrderEmail === normalizedInputEmail);
-          
-          if (normalizedOrderEmail === normalizedInputEmail) {
-            console.log('✅ Email match found!');
-            return { order, emailMatch: true };
-          } else {
-            console.log('❌ Email mismatch - storing for potential error message');
-            foundOrderWithWrongEmail = order;
-          }
+        // Verify email matches
+        if (order.email && order.email.toLowerCase() === email) {
+          console.log(`✅ Found matching order: ${order.name} via query: ${query}`);
+          return { order, emailMatch: true };
         } else {
-          console.log('⚠️ Order has no email field');
+          console.log(`❌ Order found but email doesn't match: ${order.email} vs ${email} (query: ${query})`);
+          foundOrderWithWrongEmail = order;
+          // Continue searching in case there's another order with the same number but correct email
         }
-      } else {
-        console.log('🔍 No orders found for query:', query);
       }
+      
     } catch (error) {
-      console.error('💥 Error searching with query', query, ':', error.message);
+      console.error(`Error searching for order ${query}:`, error);
       continue;
     }
   }
 
-  console.log('📊 Search Summary:', {
-    totalQueriesTried: uniqueSearchQueries.length,
-    totalOrdersFound: totalOrdersChecked,
-    foundOrderWithWrongEmail: !!foundOrderWithWrongEmail
-  });
-  
+  // Method 2: If not found by name, search by email and then filter
+  try {
+    console.log(`Searching orders by email: ${email}`);
+    
+    const emailSearchUrl = `https://${shopDomain}/admin/api/${apiVersion}/orders.json?email=${encodeURIComponent(email)}&limit=50`;
+    
+    const response = await fetch(emailSearchUrl, {
+      headers: {
+        'X-Shopify-Access-Token': accessToken,
+        'Content-Type': 'application/json'
+      }
+    });
+
+    if (response.ok) {
+      const data = await response.json();
+      
+      if (data.orders && data.orders.length > 0) {
+        // Look for matching order number in this customer's orders
+        const matchingOrder = data.orders.find(order => {
+          return uniqueSearchQueries.some(query => {
+            // Check both order name and order number
+            return order.name === query || 
+                   order.order_number?.toString() === query.replace(/^(#|AG-|AF)/, '') ||
+                   // Also check if the order name contains AG- and matches
+                   (order.name && order.name.includes('AG-') && order.name === `AG-${query.replace(/^(#|AG-|AF)/, '')}`);
+          });
+        });
+        
+        if (matchingOrder) {
+          console.log(`✅ Found matching order via email search: ${matchingOrder.name}`);
+          return { order: matchingOrder, emailMatch: true };
+        }
+      }
+    }
+  } catch (error) {
+    console.error('Error searching by email:', error);
+  }
+
+  // If we found an order with the right number but wrong email, return that info
   if (foundOrderWithWrongEmail) {
     return { order: foundOrderWithWrongEmail, emailMatch: false };
   }
@@ -644,25 +424,58 @@ async function findShopifyOrder(orderNumber, email) {
 }
 
 function validateOrderForDelivery(order) {
+  // Check if order is paid
   if (order.financial_status !== 'paid' && order.financial_status !== 'partially_paid') {
     return {
       valid: false,
-      reason: 'Order payment not confirmed'
+      reason: 'Order payment not confirmed',
+      details: 'Please ensure your payment has been processed before requesting delivery'
     };
   }
 
+  // Check if order is not cancelled
   if (order.cancelled_at) {
     return {
       valid: false,
-      reason: 'Order has been cancelled'
+      reason: 'Order has been cancelled',
+      details: 'Cancelled orders are not eligible for delivery'
     };
   }
 
+  // Check if order is not already fulfilled
   if (order.fulfillment_status === 'fulfilled') {
     return {
       valid: false,
-      reason: 'Order has already been fulfilled'
+      reason: 'Order has already been fulfilled',
+      details: 'This order has already been delivered and cannot be claimed again'
     };
+  }
+
+  // Check if order has been refunded
+  if (order.financial_status === 'refunded' || order.financial_status === 'partially_refunded') {
+    return {
+      valid: false,
+      reason: 'Order has been refunded',
+      details: 'Refunded orders are not eligible for delivery'
+    };
+  }
+
+  // Additional check for any refund transactions
+  if (order.refunds && order.refunds.length > 0) {
+    const totalRefunded = order.refunds.reduce((sum, refund) => {
+      return sum + parseFloat(refund.amount || 0);
+    }, 0);
+    
+    const totalPrice = parseFloat(order.total_price || 0);
+    
+    // If fully refunded
+    if (totalRefunded >= totalPrice) {
+      return {
+        valid: false,
+        reason: 'Order has been fully refunded',
+        details: 'Fully refunded orders are not eligible for delivery'
+      };
+    }
   }
 
   return { valid: true };
@@ -683,4 +496,147 @@ function formatOrderItems(lineItems) {
     }
     return itemName;
   }).join(', ');
+}
+
+// Roblox username verification
+async function handleUsernameVerification(req, res, username) {
+  console.log(`🎮 Roblox Username Verification: ${username}`);
+  
+  if (!username || typeof username !== 'string' || username.trim() === '') {
+    return res.status(400).json({ error: 'Username is required' });
+  }
+
+  const cleanUsername = username.trim();
+  
+  // Validate username format
+  if (cleanUsername.length < 3 || cleanUsername.length > 20) {
+    return res.status(400).json({ error: 'Username must be between 3-20 characters' });
+  }
+
+  if (!/^[a-zA-Z0-9_]+$/.test(cleanUsername)) {
+    return res.status(400).json({ error: 'Username can only contain letters, numbers, and underscores' });
+  }
+
+  console.log(`Searching for Roblox user: ${cleanUsername}`);
+
+  // Method 1: Try the more reliable username-to-ID conversion
+  try {
+    console.log('Attempting username-to-ID conversion...');
+    const usernameToIdResponse = await fetch('https://users.roblox.com/v1/usernames/users', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        usernames: [cleanUsername],
+        excludeBannedUsers: true
+      })
+    });
+    
+    if (usernameToIdResponse.ok) {
+      const usernameData = await usernameToIdResponse.json();
+      console.log('Username-to-ID API response:', usernameData);
+      
+      if (usernameData.data && usernameData.data.length > 0) {
+        const userData = usernameData.data[0];
+        
+        // Check if the returned username exactly matches (case-insensitive)
+        if (userData.name && userData.name.toLowerCase() === cleanUsername.toLowerCase()) {
+          console.log('✅ Found exact match via username-to-ID API:', userData.name);
+          
+          // Get avatar
+          let avatarUrl = `https://www.roblox.com/headshot-thumbnail/image?userId=${userData.id}&width=150&height=150&format=png&v=${Date.now()}`;
+          
+          try {
+            const avatarResponse = await fetch(`https://thumbnails.roblox.com/v1/users/avatar-headshot?userIds=${userData.id}&size=150x150&format=Png&isCircular=false`);
+            if (avatarResponse.ok) {
+              const avatarData = await avatarResponse.json();
+              if (avatarData.data && avatarData.data[0] && avatarData.data[0].imageUrl) {
+                avatarUrl = avatarData.data[0].imageUrl;
+                console.log('Got avatar from thumbnails API');
+              }
+            }
+          } catch (avatarError) {
+            console.log('Avatar API failed, using fallback URL');
+          }
+
+          return res.status(200).json({
+            userId: userData.id.toString(),
+            username: userData.name,
+            avatarUrl: avatarUrl,
+            method: 'username-to-id-api'
+          });
+        }
+      } else {
+        console.log('❌ Username-to-ID API returned no users');
+      }
+    } else {
+      console.log('❌ Username-to-ID API request failed:', usernameToIdResponse.status);
+    }
+  } catch (apiError) {
+    console.error('❌ Username-to-ID API error:', apiError.message);
+  }
+
+  // Method 2: Fallback to search API
+  try {
+    console.log('Falling back to search API...');
+    const userSearchResponse = await fetch(`https://users.roblox.com/v1/users/search?keyword=${encodeURIComponent(cleanUsername)}&limit=10`);
+    
+    if (userSearchResponse.ok) {
+      const userSearchData = await userSearchResponse.json();
+      console.log(`Search API returned ${userSearchData.data?.length || 0} users`);
+      
+      if (userSearchData.data && userSearchData.data.length > 0) {
+        const exactMatch = userSearchData.data.find(user => 
+          user.name && user.name.toLowerCase() === cleanUsername.toLowerCase()
+        );
+        
+        if (exactMatch) {
+          console.log('✅ Found exact match via search API:', exactMatch.name);
+          
+          // Try to get avatar
+          let avatarUrl = `https://www.roblox.com/headshot-thumbnail/image?userId=${exactMatch.id}&width=150&height=150&format=png&v=${Date.now()}`;
+          
+          try {
+            const avatarResponse = await fetch(`https://thumbnails.roblox.com/v1/users/avatar-headshot?userIds=${exactMatch.id}&size=150x150&format=Png&isCircular=false`);
+            if (avatarResponse.ok) {
+              const avatarData = await avatarResponse.json();
+              if (avatarData.data && avatarData.data[0] && avatarData.data[0].imageUrl) {
+                avatarUrl = avatarData.data[0].imageUrl;
+                console.log('Got avatar from thumbnails API');
+              }
+            }
+          } catch (avatarError) {
+            console.log('Avatar API failed, using fallback URL');
+          }
+
+          return res.status(200).json({
+            userId: exactMatch.id.toString(),
+            username: exactMatch.name,
+            avatarUrl: avatarUrl,
+            method: 'search-api'
+          });
+        } else {
+          console.log('❌ No exact username match found in search API results');
+        }
+      } else {
+        console.log('❌ Search API returned no users');
+      }
+    } else {
+      console.log('❌ Search API request failed:', userSearchResponse.status);
+    }
+  } catch (apiError) {
+    console.error('❌ Search API error:', apiError.message);
+  }
+
+  // If both methods fail, return error
+  console.log('❌ Username verification failed with both methods');
+  return res.status(404).json({ 
+    error: `User "${cleanUsername}" not found. Please check the spelling and try again.`,
+    suggestions: [
+      'Make sure the username is spelled correctly (case-sensitive)',
+      'Check that the account exists on Roblox',
+      'Try again in a few minutes - Roblox APIs can be temporarily unavailable'
+    ]
+  });
 }
