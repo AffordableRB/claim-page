@@ -299,11 +299,16 @@ async function handleOrderVerification(req, res, orderNumber, email) {
   }
 }
 
-// FIXED SHOPIFY SEARCH FUNCTION - Added .myshopify.com
+// FIXED SHOPIFY SEARCH FUNCTION - Smart domain handling
 async function findShopifyOrder(orderNumber, email) {
   const shopDomain = process.env.SHOPIFY_SHOP_DOMAIN;
   const accessToken = process.env.SHOPIFY_ACCESS_TOKEN;
   const apiVersion = process.env.SHOPIFY_API_VERSION || '2024-01';
+  
+  // Smart domain handling - check if .myshopify.com is already included
+  const baseUrl = shopDomain.includes('.myshopify.com') 
+    ? `https://${shopDomain}` 
+    : `https://${shopDomain}.myshopify.com`;
   
   // Shopify order numbers can have different formats
   const searchQueries = [
@@ -323,9 +328,9 @@ async function findShopifyOrder(orderNumber, email) {
       originalOrderNumber: orderNumber,
       searchQueries: uniqueSearchQueries,
       shopDomain,
+      baseUrl,
       hasAccessToken: !!accessToken,
-      email,
-      fullShopUrl: `${shopDomain}.myshopify.com` // Added for debugging
+      email
     });
   }
 
@@ -335,8 +340,8 @@ async function findShopifyOrder(orderNumber, email) {
     try {
       console.log(`Searching Shopify for order: ${query}`);
       
-      // FIXED: Added .myshopify.com to the URL
-      const nameSearchUrl = `https://${shopDomain}.myshopify.com/admin/api/${apiVersion}/orders.json?name=${encodeURIComponent(query)}&limit=1`;
+      // FIXED: Use smart baseUrl that handles both domain formats
+      const nameSearchUrl = `${baseUrl}/admin/api/${apiVersion}/orders.json?name=${encodeURIComponent(query)}&limit=1`;
       
       console.log(`🔗 Making request to: ${nameSearchUrl}`); // Debug log
       
@@ -378,8 +383,8 @@ async function findShopifyOrder(orderNumber, email) {
   try {
     console.log(`Searching orders by email: ${email}`);
     
-    // FIXED: Added .myshopify.com to the URL
-    const emailSearchUrl = `https://${shopDomain}.myshopify.com/admin/api/${apiVersion}/orders.json?email=${encodeURIComponent(email)}&limit=50`;
+    // FIXED: Use smart baseUrl that handles both domain formats
+    const emailSearchUrl = `${baseUrl}/admin/api/${apiVersion}/orders.json?email=${encodeURIComponent(email)}&limit=50`;
     
     console.log(`🔗 Making email search request to: ${emailSearchUrl}`); // Debug log
     
