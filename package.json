@@ -1,1 +1,30 @@
-
+{
+  "name": "affordable-garden-delivery",
+  "version": "1.0.0",
+  "description": "Delivery verification system with Firestore integration",
+  "main": "index.js",
+  "scripts": {
+    "dev": "vercel dev",
+    "build": "echo 'No build step required'",
+    "start": "echo 'Static site - no start command needed'"
+  },
+  "dependencies": {
+    "firebase": "^10.7.1"
+  },
+  "engines": {
+    "node": "18.x"
+  },
+  "repository": {
+    "type": "git",
+    "url": "your-repository-url"
+  },
+  "keywords": [
+    "delivery",
+    "verification",
+    "firestore",
+    "shopify",
+    "roblox"
+  ],
+  "author": "Affordable Garden",
+  "license": "MIT"
+}
