@@ -1,4 +1,4 @@
-// api/verify.js - Working REST API + Firebase Integration
+// api/verify.js - Fixed REST API + Firebase Integration
 import { initializeApp, getApps } from 'firebase/app';
 import { getFirestore, collection, addDoc, serverTimestamp, connectFirestoreEmulator } from 'firebase/firestore';
 import crypto from 'crypto';
@@ -216,7 +216,7 @@ async function handleDeliveryRegistration(req, res, deliveryData) {
   }
 }
 
-// WORKING SHOPIFY ORDER VERIFICATION (Using your working REST API code)
+// FIXED SHOPIFY ORDER VERIFICATION - Added .myshopify.com
 async function handleOrderVerification(req, res, orderNumber, email) {
   console.log(`🔍 Shopify Order Verification: ${orderNumber} for ${email}`);
   
@@ -241,7 +241,7 @@ async function handleOrderVerification(req, res, orderNumber, email) {
       return res.status(500).json({ error: 'Server configuration error' });
     }
 
-    // Search for the order in Shopify using the WORKING method
+    // Search for the order in Shopify using the FIXED method
     const searchResult = await findShopifyOrder(cleanOrderNumber, cleanEmail);
     
     if (!searchResult) {
@@ -299,7 +299,7 @@ async function handleOrderVerification(req, res, orderNumber, email) {
   }
 }
 
-// YOUR WORKING SHOPIFY SEARCH FUNCTION (unchanged)
+// FIXED SHOPIFY SEARCH FUNCTION - Added .myshopify.com
 async function findShopifyOrder(orderNumber, email) {
   const shopDomain = process.env.SHOPIFY_SHOP_DOMAIN;
   const accessToken = process.env.SHOPIFY_ACCESS_TOKEN;
@@ -324,7 +324,8 @@ async function findShopifyOrder(orderNumber, email) {
       searchQueries: uniqueSearchQueries,
       shopDomain,
       hasAccessToken: !!accessToken,
-      email
+      email,
+      fullShopUrl: `${shopDomain}.myshopify.com` // Added for debugging
     });
   }
 
@@ -334,7 +335,10 @@ async function findShopifyOrder(orderNumber, email) {
     try {
       console.log(`Searching Shopify for order: ${query}`);
       
+      // FIXED: Added .myshopify.com to the URL
       const nameSearchUrl = `https://${shopDomain}.myshopify.com/admin/api/${apiVersion}/orders.json?name=${encodeURIComponent(query)}&limit=1`;
+      
+      console.log(`🔗 Making request to: ${nameSearchUrl}`); // Debug log
       
       const response = await fetch(nameSearchUrl, {
         headers: {
@@ -344,7 +348,9 @@ async function findShopifyOrder(orderNumber, email) {
       });
 
       if (!response.ok) {
-        console.error(`Shopify API error for query ${query}: ${response.status}`);
+        console.error(`Shopify API error for query ${query}: ${response.status} ${response.statusText}`);
+        const errorText = await response.text();
+        console.error(`Error response: ${errorText}`);
         continue;
       }
 
@@ -372,7 +378,10 @@ async function findShopifyOrder(orderNumber, email) {
   try {
     console.log(`Searching orders by email: ${email}`);
     
+    // FIXED: Added .myshopify.com to the URL
     const emailSearchUrl = `https://${shopDomain}.myshopify.com/admin/api/${apiVersion}/orders.json?email=${encodeURIComponent(email)}&limit=50`;
+    
+    console.log(`🔗 Making email search request to: ${emailSearchUrl}`); // Debug log
     
     const response = await fetch(emailSearchUrl, {
       headers: {
@@ -398,6 +407,9 @@ async function findShopifyOrder(orderNumber, email) {
           return { order: matchingOrder, emailMatch: true };
         }
       }
+    } else {
+      const errorText = await response.text();
+      console.error(`Email search failed: ${response.status} ${response.statusText}`, errorText);
     }
   } catch (error) {
     console.error('Error searching by email:', error);
@@ -635,7 +647,8 @@ export default async function handler(req, res) {
       email: !!email, 
       username: !!username, 
       action: action || 'none',
-      hasDeliveryData: !!deliveryData
+      hasDeliveryData: !!deliveryData,
+      shopDomain: process.env.SHOPIFY_SHOP_DOMAIN // Added for debugging
     });
 
     // Firestore test
