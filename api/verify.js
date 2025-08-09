@@ -31,7 +31,7 @@ async function saveToAirtable(deliveryData) {
     };
 
     // Send to Airtable
-    const response = await fetch(`https://api.airtable.com/v0/${process.env.AIRTABLE_BASE_ID}/Deliveries`, {
+    const response = await fetch(`https://api.airtable.com/v0/${process.env.AIRTABLE_BASE_ID}/Affordable.Garden%20Orders`, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${process.env.AIRTABLE_API_KEY}`,
