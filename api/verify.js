@@ -2,93 +2,68 @@ import crypto from 'crypto';
 
 const DEBUG_MODE = process.env.NODE_ENV === 'development';
 
-// NEW: Google Sheets Integration Functions
-async function saveToGoogleSheets(deliveryData) {
-  if (!process.env.GOOGLE_SHEETS_SPREADSHEET_ID || 
-      !process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL || 
-      !process.env.GOOGLE_PRIVATE_KEY) {
-    console.error('❌ Missing Google Sheets environment variables');
-    throw new Error('Google Sheets not configured');
+// NEW: Airtable Integration Functions (Much simpler than Google Sheets!)
+async function saveToAirtable(deliveryData) {
+  if (!process.env.AIRTABLE_API_KEY || !process.env.AIRTABLE_BASE_ID) {
+    console.error('❌ Missing Airtable environment variables');
+    throw new Error('Airtable not configured - add AIRTABLE_API_KEY and AIRTABLE_BASE_ID');
   }
 
   try {
-    console.log('📊 Saving to Google Sheets...');
+    console.log('📊 Saving to Airtable...');
     
-    // Create JWT token for Google Sheets API
-    const jwt = await createGoogleJWT();
-    
-    // Prepare the row data
     const registrationId = generateDeliveryId();
     const timestamp = new Date().toISOString();
     
-    const rowData = [
-      registrationId,                                    // A: Registration ID
-      timestamp,                                         // B: Timestamp
-      deliveryData.order.orderNumber || 'N/A',         // C: Order Number
-      deliveryData.order.email || 'N/A',               // D: Customer Email
-      deliveryData.roblox.username || 'N/A',           // E: Roblox Username
-      deliveryData.roblox.userId || 'N/A',             // F: Roblox User ID
-      deliveryData.order.items || 'Digital Items',      // G: Order Items
-      deliveryData.order.total || 'N/A',               // H: Order Total
-      'Pending Delivery',                                // I: Status
-      '',                                                // J: Delivery Notes (empty for now)
-      deliveryData.serverJoinTime || timestamp          // K: Server Join Time
-    ];
+    // Prepare the record data
+    const recordData = {
+      "Registration ID": registrationId,
+      "Timestamp": timestamp,
+      "Order Number": deliveryData.order.orderNumber || 'N/A',
+      "Email": deliveryData.order.email || 'N/A',
+      "Roblox Username": deliveryData.roblox.username || 'N/A',
+      "User ID": deliveryData.roblox.userId || 'N/A',
+      "Items": deliveryData.order.items || 'Digital Items',
+      "Order Total": deliveryData.order.total || 'N/A',
+      "Status": 'Pending Delivery',
+      "Notes": '',
+      "Server Join Time": deliveryData.serverJoinTime || timestamp
+    };
 
-    // Append to Google Sheets
-    const response = await fetch(
-      `https://sheets.googleapis.com/v4/spreadsheets/${process.env.GOOGLE_SHEETS_SPREADSHEET_ID}/values/Sheet1:append?valueInputOption=RAW`,
-      {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${jwt}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          values: [rowData]
-        })
-      }
-    );
+    // Send to Airtable
+    const response = await fetch(`https://api.airtable.com/v0/${process.env.AIRTABLE_BASE_ID}/Deliveries`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${process.env.AIRTABLE_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        records: [{
+          fields: recordData
+        }]
+      })
+    });
 
     if (!response.ok) {
       const errorData = await response.text();
-      console.error('❌ Google Sheets API Error:', response.status, errorData);
-      throw new Error(`Google Sheets API error: ${response.status}`);
+      console.error('❌ Airtable API Error:', response.status, errorData);
+      throw new Error(`Airtable API error: ${response.status} - ${errorData}`);
     }
 
     const result = await response.json();
-    console.log('✅ Successfully saved to Google Sheets:', result.updates);
+    console.log('✅ Successfully saved to Airtable:', result.records[0].id);
     
     return {
       success: true,
       registrationId,
-      rowsAdded: result.updates?.updatedRows || 1,
-      range: result.updates?.updatedRange
+      airtableId: result.records[0].id,
+      recordsAdded: result.records.length
     };
 
   } catch (error) {
-    console.error('❌ Google Sheets save error:', error);
+    console.error('❌ Airtable save error:', error);
     throw error;
   }
-}
-
-async function createGoogleJWT() {
-  const { JWT } = await import('google-auth-library');
-  
-  // Clean up the private key - remove extra quotes and fix line breaks
-  const privateKey = process.env.GOOGLE_PRIVATE_KEY
-    .replace(/\\n/g, '\n')
-    .replace(/^"/, '')
-    .replace(/"$/, '');
-
-  const client = new JWT({
-    email: process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL,
-    key: privateKey,
-    scopes: ['https://www.googleapis.com/auth/spreadsheets'],
-  });
-
-  const tokens = await client.authorize();
-  return tokens.access_token;
 }
 
 function generateDeliveryId() {
@@ -109,12 +84,12 @@ async function handleDeliveryRegistration(req, res, deliveryData) {
       });
     }
 
-    // Save to Google Sheets
-    const sheetResult = await saveToGoogleSheets(deliveryData);
+    // Save to Airtable
+    const airtableResult = await saveToAirtable(deliveryData);
     
     // Prepare response
     const registrationRecord = {
-      registrationId: sheetResult.registrationId,
+      registrationId: airtableResult.registrationId,
       timestamp: deliveryData.timestamp,
       order: {
         orderNumber: deliveryData.order.orderNumber,
@@ -127,8 +102,8 @@ async function handleDeliveryRegistration(req, res, deliveryData) {
         userId: deliveryData.roblox.userId
       },
       status: 'pending_delivery',
-      savedToSheets: true,
-      sheetRange: sheetResult.range
+      savedToAirtable: true,
+      airtableId: airtableResult.airtableId
     };
     
     console.log('✅ Delivery registration successful:', registrationRecord.registrationId);
@@ -187,7 +162,7 @@ export default async function handler(req, res) {
       return await handleUsernameVerification(req, res, username);
     }
 
-    // NEW: Handle delivery registration
+    // NEW: Handle delivery registration with Airtable
     if (action === 'register_delivery' && deliveryData) {
       return await handleDeliveryRegistration(req, res, deliveryData);
     }
