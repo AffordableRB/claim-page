@@ -746,12 +746,12 @@
       }, 500);
     }
 
-    function joinDeliveryServer() {
+    // Updated joinDeliveryServer function with registration tracking
+    async function joinDeliveryServer() {
       if (!currentUserData || !currentOrderData) {
         showError('Missing required information');
         return;
       }
-
       const finalData = {
         order: currentOrderData,
         roblox: currentUserData,
@@ -761,14 +761,69 @@
       
       console.log('Final registration data:', finalData);
       
-      showSuccess(`🎉 Welcome ${currentUserData.username}! Opening delivery server...`);
-
+      // Show immediate feedback
+      showSuccess(`🎉 Welcome ${currentUserData.username}! Saving registration...`);
+      
+      try {
+        // Send data to Google Sheets
+        console.log('📊 Sending delivery registration to backend...');
+        
+        const response = await fetch('https://claim-page-one.vercel.app/api/verify', {
+          method: 'POST',
+          headers: { 
+            'Content-Type': 'application/json',
+            'Accept': 'application/json'
+          },
+          body: JSON.stringify({ 
+            action: 'register_delivery',
+            deliveryData: finalData
+          }),
+        });
+        const responseText = await response.text();
+        console.log('Registration API response:', responseText);
+        
+        let result;
+        try {
+          result = JSON.parse(responseText);
+        } catch (parseError) {
+          console.error('Failed to parse registration response:', parseError);
+          console.error('Raw response:', responseText);
+          throw new Error('Invalid response format from server');
+        }
+        if (response.ok && result.success) {
+          console.log('✅ Delivery registration successful:', result);
+          showSuccess(`✅ Registration saved! ID: ${result.registrationId} - Opening server...`);
+          
+          // Optional: Store the registration ID for reference
+          localStorage.setItem('lastRegistrationId', result.registrationId);
+          
+        } else {
+          console.error('❌ Registration failed:', result);
+          if (result.canContinue) {
+            showError('⚠️ Registration failed to save, but you can still join the server');
+          } else {
+            showError(`Registration error: ${result.error || 'Unknown error'}`);
+          }
+        }
+      } catch (error) {
+        console.error('Registration request failed:', error);
+        showError('⚠️ Could not save registration - continuing to server anyway...');
+      }
+      
+      // Always continue with opening the server (even if registration fails)
       setTimeout(() => {
-        window.open('https://www.roblox.com/share?code=3f541f34634d5a448517bd05693722a1&type=Server', '_blank');
+        showSuccess(`🚀 Opening delivery server for ${currentUserData.username}...`);
         
         setTimeout(() => {
-          alert(`Server opened! If it didn't open automatically, copy this link:\n\nhttps://www.roblox.com/share?code=3f541f34634d5a448517bd05693722a1&type=Server\n\nPlease wait in the server for a staff member to deliver your items.`);
-        }, 1000);
+          window.open('https://www.roblox.com/share?code=3f541f34634d5a448517bd05693722a1&type=Server', '_blank');
+          
+          setTimeout(() => {
+            const registrationId = localStorage.getItem('lastRegistrationId');
+            const idText = registrationId ? `\n\nRegistration ID: ${registrationId}` : '';
+            
+            alert(`Server opened! If it didn't open automatically, copy this link:\n\nhttps://www.roblox.com/share?code=3f541f34634d5a448517bd05693722a1&type=Server\n\nPlease wait in the server for a staff member to deliver your items.${idText}`);
+          }, 1000);
+        }, 1500);
       }, 1000);
     }
 
