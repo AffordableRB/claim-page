@@ -412,6 +412,38 @@ export default async function handler(req, res) {
   console.log('Method:', req.method);
   console.log('Body:', JSON.stringify(req.body, null, 2));
   
+  // Add debug endpoint for testing Shopify connection
+  if (req.body.action === 'debug_shopify') {
+    try {
+      const testUrl = `https://${process.env.SHOPIFY_SHOP_DOMAIN}/admin/api/2024-01/orders.json?limit=1`;
+      const testResponse = await fetch(testUrl, {
+        headers: {
+          'X-Shopify-Access-Token': process.env.SHOPIFY_ACCESS_TOKEN,
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      const testData = await testResponse.json();
+      return res.json({
+        shopifyConnection: testResponse.ok,
+        status: testResponse.status,
+        hasOrders: testData.orders?.length > 0,
+        sampleOrder: testData.orders?.[0] ? {
+          name: testData.orders[0].name,
+          email: testData.orders[0].email,
+          id: testData.orders[0].id
+        } : null,
+        envVars: {
+          hasShopDomain: !!process.env.SHOPIFY_SHOP_DOMAIN,
+          hasAccessToken: !!process.env.SHOPIFY_ACCESS_TOKEN,
+          shopDomain: process.env.SHOPIFY_SHOP_DOMAIN
+        }
+      });
+    } catch (error) {
+      return res.json({ error: error.message, shopifyConnection: false });
+    }
+  }
+  
   // Set CORS headers
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
@@ -498,6 +530,12 @@ async function findShopifyOrder(orderNumber, email) {
   const accessToken = process.env.SHOPIFY_ACCESS_TOKEN;
   const apiVersion = process.env.SHOPIFY_API_VERSION || '2024-01';
   
+  console.log('🏪 Shopify Config:', {
+    shopDomain: shopDomain || 'MISSING',
+    hasAccessToken: !!accessToken,
+    apiVersion
+  });
+  
   const searchQueries = [
     orderNumber,
     orderNumber.replace(/^#/, ''),
@@ -509,7 +547,10 @@ async function findShopifyOrder(orderNumber, email) {
   ];
 
   const uniqueSearchQueries = [...new Set(searchQueries)];
+  console.log('📝 All search queries:', uniqueSearchQueries);
+  
   let foundOrderWithWrongEmail = null;
+  let totalOrdersChecked = 0;
 
   // Clean and normalize the input email for comparison
   const normalizedInputEmail = email.toLowerCase().trim();
@@ -517,8 +558,9 @@ async function findShopifyOrder(orderNumber, email) {
 
   for (const query of uniqueSearchQueries) {
     try {
-      console.log('Searching with query:', query);
+      console.log('🔎 Searching with query:', query);
       const nameSearchUrl = `https://${shopDomain}/admin/api/${apiVersion}/orders.json?name=${encodeURIComponent(query)}&limit=1`;
+      console.log('🌐 Request URL:', nameSearchUrl);
       
       const response = await fetch(nameSearchUrl, {
         headers: {
@@ -527,22 +569,37 @@ async function findShopifyOrder(orderNumber, email) {
         }
       });
 
+      console.log('📡 Response status:', response.status);
+
       if (!response.ok) {
-        console.log('API response not OK:', response.status);
+        const errorText = await response.text();
+        console.error('❌ API response not OK:', {
+          status: response.status,
+          statusText: response.statusText,
+          error: errorText
+        });
         continue;
       }
 
       const data = await response.json();
+      console.log('📦 Orders found for query:', data.orders?.length || 0);
       
       if (data.orders && data.orders.length > 0) {
         const order = data.orders[0];
-        console.log('Found order:', order.name);
-        console.log('Order email from Shopify:', order.email);
+        totalOrdersChecked++;
+        
+        console.log('🎯 Found order details:', {
+          name: order.name,
+          id: order.id,
+          email: order.email,
+          financialStatus: order.financial_status,
+          fulfillmentStatus: order.fulfillment_status
+        });
         
         // More robust email comparison
         if (order.email) {
           const normalizedOrderEmail = order.email.toLowerCase().trim();
-          console.log('Comparing emails:');
+          console.log('📧 Comparing emails:');
           console.log('  Input email (normalized):', normalizedInputEmail);
           console.log('  Order email (normalized):', normalizedOrderEmail);
           console.log('  Match:', normalizedOrderEmail === normalizedInputEmail);
@@ -556,19 +613,21 @@ async function findShopifyOrder(orderNumber, email) {
           }
         } else {
           console.log('⚠️ Order has no email field');
-          // If order has no email, we might still want to return it
-          // depending on your business logic
         }
       } else {
-        console.log('No orders found for query:', query);
+        console.log('🔍 No orders found for query:', query);
       }
     } catch (error) {
-      console.error('Error searching with query', query, ':', error.message);
+      console.error('💥 Error searching with query', query, ':', error.message);
       continue;
     }
   }
 
-  console.log('Final result: foundOrderWithWrongEmail:', !!foundOrderWithWrongEmail);
+  console.log('📊 Search Summary:', {
+    totalQueriesTried: uniqueSearchQueries.length,
+    totalOrdersFound: totalOrdersChecked,
+    foundOrderWithWrongEmail: !!foundOrderWithWrongEmail
+  });
   
   if (foundOrderWithWrongEmail) {
     return { order: foundOrderWithWrongEmail, emailMatch: false };
