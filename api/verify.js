@@ -2,7 +2,7 @@ import crypto from 'crypto';
 
 const DEBUG_MODE = process.env.NODE_ENV === 'development';
 
-// NEW: Airtable Integration Functions (Much simpler than Google Sheets!)
+// UPDATED: Airtable Integration with AG Orders table name
 async function saveToAirtable(deliveryData) {
   if (!process.env.AIRTABLE_API_KEY || !process.env.AIRTABLE_BASE_ID) {
     console.error('❌ Missing Airtable environment variables');
@@ -30,35 +30,64 @@ async function saveToAirtable(deliveryData) {
       "Server Join Time": deliveryData.serverJoinTime || timestamp
     };
 
-    // Send to Airtable
-    const response = await fetch(`https://api.airtable.com/v0/${process.env.AIRTABLE_BASE_ID}/Affordable.Garden%20Orders`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${process.env.AIRTABLE_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        records: [{
-          fields: recordData
-        }]
-      })
-    });
+    // Try different table name formats - updated for AG Orders
+    const tableNames = [
+      'AG Orders',  // Your new table name
+      'Orders', // Fallback
+      'Table 1' // Default name fallback
+    ];
 
-    if (!response.ok) {
-      const errorData = await response.text();
-      console.error('❌ Airtable API Error:', response.status, errorData);
-      throw new Error(`Airtable API error: ${response.status} - ${errorData}`);
-    }
-
-    const result = await response.json();
-    console.log('✅ Successfully saved to Airtable:', result.records[0].id);
+    let lastError;
     
-    return {
-      success: true,
-      registrationId,
-      airtableId: result.records[0].id,
-      recordsAdded: result.records.length
-    };
+    for (const tableName of tableNames) {
+      try {
+        console.log(`Trying table name: "${tableName}"`);
+        
+        // Simple encoding for clean table names
+        const encodedTableName = encodeURIComponent(tableName);
+        const url = `https://api.airtable.com/v0/${process.env.AIRTABLE_BASE_ID}/${encodedTableName}`;
+        
+        console.log(`Trying URL: ${url}`);
+        
+        const response = await fetch(url, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${process.env.AIRTABLE_API_KEY}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            records: [{
+              fields: recordData
+            }]
+          })
+        });
+
+        const responseText = await response.text();
+        console.log(`Response for ${tableName}:`, response.status, responseText);
+
+        if (response.ok) {
+          const result = JSON.parse(responseText);
+          console.log('✅ Successfully saved to Airtable:', result.records[0].id);
+          
+          return {
+            success: true,
+            registrationId,
+            airtableId: result.records[0].id,
+            recordsAdded: result.records.length,
+            tableName
+          };
+        } else {
+          lastError = `${response.status}: ${responseText}`;
+        }
+        
+      } catch (tableError) {
+        console.log(`Failed with table ${tableName}:`, tableError.message);
+        lastError = tableError.message;
+        continue;
+      }
+    }
+    
+    throw new Error(`All table names failed. Last error: ${lastError}`);
 
   } catch (error) {
     console.error('❌ Airtable save error:', error);
@@ -103,7 +132,8 @@ async function handleDeliveryRegistration(req, res, deliveryData) {
       },
       status: 'pending_delivery',
       savedToAirtable: true,
-      airtableId: airtableResult.airtableId
+      airtableId: airtableResult.airtableId,
+      tableName: airtableResult.tableName
     };
     
     console.log('✅ Delivery registration successful:', registrationRecord.registrationId);
@@ -127,7 +157,7 @@ async function handleDeliveryRegistration(req, res, deliveryData) {
   }
 }
 
-// MAIN HANDLER (Updated)
+// MAIN HANDLER
 export default async function handler(req, res) {
   // Set CORS headers
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -153,6 +183,37 @@ export default async function handler(req, res) {
       hasDeliveryData: !!deliveryData
     });
 
+    // Debug/Test endpoint
+    if (action === 'test_airtable') {
+      try {
+        // Test just listing tables in your base
+        const response = await fetch(`https://api.airtable.com/v0/meta/bases/${process.env.AIRTABLE_BASE_ID}/tables`, {
+          headers: {
+            'Authorization': `Bearer ${process.env.AIRTABLE_API_KEY}`,
+          }
+        });
+        
+        const result = await response.json();
+        console.log('Available tables:', result);
+        
+        return res.status(200).json({
+          success: response.ok,
+          status: response.status,
+          tables: result.tables?.map(t => ({ id: t.id, name: t.name })) || [],
+          baseId: process.env.AIRTABLE_BASE_ID?.substring(0, 10) + '...', // Partial for security
+          hasApiKey: !!process.env.AIRTABLE_API_KEY,
+          apiKeyPrefix: process.env.AIRTABLE_API_KEY?.substring(0, 4) + '...'
+        });
+        
+      } catch (error) {
+        return res.status(500).json({ 
+          error: error.message,
+          baseId: !!process.env.AIRTABLE_BASE_ID,
+          hasApiKey: !!process.env.AIRTABLE_API_KEY
+        });
+      }
+    }
+
     // Method 1: Check by action parameter
     if (action === 'verify_order' && orderNumber && email) {
       return await handleOrderVerification(req, res, orderNumber, email);
@@ -162,7 +223,7 @@ export default async function handler(req, res) {
       return await handleUsernameVerification(req, res, username);
     }
 
-    // NEW: Handle delivery registration with Airtable
+    // Handle delivery registration with Airtable
     if (action === 'register_delivery' && deliveryData) {
       return await handleDeliveryRegistration(req, res, deliveryData);
     }
@@ -195,7 +256,7 @@ export default async function handler(req, res) {
   }
 }
 
-// EXISTING FUNCTIONS (Unchanged)
+// ORDER VERIFICATION FUNCTION
 async function handleOrderVerification(req, res, orderNumber, email) {
   console.log(`🔍 Shopify Order Verification: ${orderNumber} for ${email}`);
   
@@ -473,7 +534,7 @@ function formatOrderItems(lineItems) {
   }).join(', ');
 }
 
-// Roblox username verification
+// ROBLOX USERNAME VERIFICATION
 async function handleUsernameVerification(req, res, username) {
   console.log(`🎮 Roblox Username Verification: ${username}`);
   
