@@ -1,4 +1,4 @@
-// api/verify.js - Complete Firestore Backend
+// api/verify.js - Updated with GraphQL Shopify API
 import { initializeApp, getApps } from 'firebase/app';
 import { getFirestore, collection, addDoc, serverTimestamp, connectFirestoreEmulator } from 'firebase/firestore';
 import crypto from 'crypto';
@@ -68,7 +68,7 @@ function initFirebase() {
   return db;
 }
 
-// FIRESTORE SAVE FUNCTION - Much simpler than Airtable!
+// FIRESTORE SAVE FUNCTION
 async function saveToFirestore(deliveryData) {
   const startTime = Date.now();
   
@@ -82,8 +82,8 @@ async function saveToFirestore(deliveryData) {
     const docData = {
       // Core registration info
       registrationId,
-      timestamp: serverTimestamp(), // Server timestamp for consistency
-      createdAt: new Date().toISOString(), // Client timestamp for reference
+      timestamp: serverTimestamp(),
+      createdAt: new Date().toISOString(),
       
       // Order information
       orderNumber: deliveryData.order?.orderNumber || 'N/A',
@@ -108,7 +108,7 @@ async function saveToFirestore(deliveryData) {
       // Metadata
       processedBy: 'delivery_system_v2',
       source: 'affordable_garden_delivery',
-      apiVersion: '2.0',
+      apiVersion: '2.1',
       userAgent: deliveryData.userAgent || null,
       
       // Analytics fields
@@ -293,9 +293,9 @@ async function handleDeliveryRegistration(req, res, deliveryData) {
   }
 }
 
-// SHOPIFY ORDER VERIFICATION
+// UPDATED: GraphQL Shopify Order Verification
 async function handleOrderVerification(req, res, orderNumber, email) {
-  console.log(`🔍 Shopify Order Verification: ${orderNumber} for ${email}`);
+  console.log(`🔍 GraphQL Shopify Order Verification: ${orderNumber} for ${email}`);
   
   // Input validation
   if (!orderNumber || !email) {
@@ -318,8 +318,8 @@ async function handleOrderVerification(req, res, orderNumber, email) {
       return res.status(500).json({ error: 'Server configuration error' });
     }
 
-    // Search for the order in Shopify
-    const searchResult = await findShopifyOrder(cleanOrderNumber, cleanEmail);
+    // Search for the order using GraphQL
+    const searchResult = await findShopifyOrderGraphQL(cleanOrderNumber, cleanEmail);
     
     if (!searchResult) {
       console.log('❌ No matching order found');
@@ -355,27 +355,178 @@ async function handleOrderVerification(req, res, orderNumber, email) {
     return res.status(200).json({
       orderNumber: order.name,
       email: cleanEmail,
-      orderId: order.id.toString(),
-      customerName: `${order.customer?.first_name || ''} ${order.customer?.last_name || ''}`.trim(),
-      items: formatOrderItems(order.line_items),
-      total: order.total_price,
-      currency: order.currency,
-      orderDate: order.created_at,
-      fulfilled: order.fulfillment_status === 'fulfilled',
+      orderId: order.id,
+      customerName: order.customer ? `${order.customer.firstName || ''} ${order.customer.lastName || ''}`.trim() : 'N/A',
+      items: formatOrderItems(order.lineItems?.nodes || []),
+      total: order.totalPrice?.amount || '0.00',
+      currency: order.totalPrice?.currencyCode || 'USD',
+      orderDate: order.createdAt,
+      fulfilled: order.fulfillmentStatus === 'FULFILLED',
       verified: true,
-      source: 'shopify_api'
+      source: 'shopify_graphql_api'
     });
 
   } catch (error) {
-    console.error('Shopify API error:', error);
+    console.error('Shopify GraphQL API error:', error);
     return res.status(500).json({ 
       error: 'Failed to verify order',
-      message: 'Please try again in a moment'
+      message: 'Please try again in a moment',
+      details: DEBUG_MODE ? error.message : undefined
     });
   }
 }
 
-// ROBLOX USERNAME VERIFICATION
+// NEW: GraphQL Shopify Helper Functions
+async function findShopifyOrderGraphQL(orderNumber, email) {
+  const shopDomain = process.env.SHOPIFY_SHOP_DOMAIN;
+  const accessToken = process.env.SHOPIFY_ACCESS_TOKEN;
+  
+  try {
+    console.log(`🔍 Searching Shopify GraphQL for order: ${orderNumber}`);
+    
+    // GraphQL query to search for orders by name
+    const query = `
+      query getOrderByName($query: String!) {
+        orders(first: 10, query: $query) {
+          nodes {
+            id
+            name
+            email
+            createdAt
+            totalPrice {
+              amount
+              currencyCode
+            }
+            customer {
+              id
+              email
+              firstName
+              lastName
+            }
+            fulfillmentStatus
+            financialStatus
+            cancelledAt
+            lineItems(first: 50) {
+              nodes {
+                id
+                name
+                quantity
+                variant {
+                  title
+                }
+                product {
+                  title
+                }
+              }
+            }
+          }
+        }
+      }
+    `;
+
+    const variables = {
+      query: `name:${orderNumber}`
+    };
+
+    console.log('📡 Sending GraphQL request to Shopify...');
+    const response = await fetch(`https://${shopDomain}.myshopify.com/admin/api/2024-10/graphql.json`, {
+      method: 'POST',
+      headers: {
+        'X-Shopify-Access-Token': accessToken,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        query,
+        variables
+      })
+    });
+
+    if (!response.ok) {
+      throw new Error(`Shopify GraphQL API error: ${response.status} ${response.statusText}`);
+    }
+
+    const data = await response.json();
+    
+    if (data.errors) {
+      console.error('GraphQL errors:', data.errors);
+      throw new Error(`GraphQL errors: ${data.errors.map(e => e.message).join(', ')}`);
+    }
+
+    const orders = data.data?.orders?.nodes || [];
+    console.log(`📊 Found ${orders.length} orders with name ${orderNumber}`);
+
+    if (orders.length === 0) {
+      return null;
+    }
+
+    // Check if any of the found orders match the email
+    const matchingOrder = orders.find(order => 
+      order.customer && order.customer.email && 
+      order.customer.email.toLowerCase() === email.toLowerCase()
+    );
+
+    if (matchingOrder) {
+      console.log('✅ Found matching order with email');
+      return { order: matchingOrder, emailMatch: true };
+    }
+
+    // Check if the order itself has the email (for guest orders)
+    const guestOrder = orders.find(order => 
+      order.email && order.email.toLowerCase() === email.toLowerCase()
+    );
+
+    if (guestOrder) {
+      console.log('✅ Found matching guest order with email');
+      return { order: guestOrder, emailMatch: true };
+    }
+
+    // Order exists but email doesn't match
+    console.log('⚠️ Order found but no email match');
+    return { order: orders[0], emailMatch: false };
+
+  } catch (error) {
+    console.error('Shopify GraphQL API error:', error);
+    throw error;
+  }
+}
+
+// UPDATED: Validation and formatting functions for GraphQL data
+function validateOrderForDelivery(order) {
+  // Check if order is cancelled
+  if (order.cancelledAt) {
+    return {
+      valid: false,
+      reason: 'Order has been cancelled',
+      details: 'This order was cancelled and cannot be processed for delivery.'
+    };
+  }
+
+  // Check payment status (GraphQL uses different enum values)
+  if (order.financialStatus !== 'PAID' && order.financialStatus !== 'PARTIALLY_PAID') {
+    return {
+      valid: false,
+      reason: 'Payment not completed',
+      details: 'This order has not been paid for yet. Please complete payment first.'
+    };
+  }
+
+  return { valid: true };
+}
+
+function formatOrderItems(lineItems) {
+  if (!lineItems || lineItems.length === 0) {
+    return 'No items found';
+  }
+
+  return lineItems.map(item => {
+    const productTitle = item.product?.title || item.name || 'Unknown Product';
+    const variantTitle = item.variant?.title || '';
+    const variantInfo = variantTitle && variantTitle !== 'Default Title' ? ` (${variantTitle})` : '';
+    return `${item.quantity}x ${productTitle}${variantInfo}`;
+  }).join(', ');
+}
+
+// ROBLOX USERNAME VERIFICATION (unchanged)
 async function handleUsernameVerification(req, res, username) {
   console.log(`🎮 Roblox Username Verification: ${username}`);
   
@@ -498,93 +649,6 @@ async function handleUsernameVerification(req, res, username) {
       message: error.message.includes('fetch') ? 'Network error - please try again' : error.message
     });
   }
-}
-
-// SHOPIFY HELPER FUNCTIONS
-async function findShopifyOrder(orderNumber, email) {
-  const shopDomain = process.env.SHOPIFY_SHOP_DOMAIN;
-  const accessToken = process.env.SHOPIFY_ACCESS_TOKEN;
-  
-  try {
-    // Search by order name (order number)
-    console.log(`Searching Shopify for order: ${orderNumber}`);
-    
-    const response = await fetch(`https://${shopDomain}.myshopify.com/admin/api/2024-01/orders.json?name=${encodeURIComponent(orderNumber)}&status=any`, {
-      headers: {
-        'X-Shopify-Access-Token': accessToken,
-        'Content-Type': 'application/json'
-      }
-    });
-
-    if (!response.ok) {
-      throw new Error(`Shopify API error: ${response.status} ${response.statusText}`);
-    }
-
-    const data = await response.json();
-    console.log(`Found ${data.orders.length} orders with name ${orderNumber}`);
-
-    if (data.orders.length === 0) {
-      return null;
-    }
-
-    // Check if any of the found orders match the email
-    const matchingOrder = data.orders.find(order => 
-      order.customer && order.customer.email && 
-      order.customer.email.toLowerCase() === email.toLowerCase()
-    );
-
-    if (matchingOrder) {
-      return { order: matchingOrder, emailMatch: true };
-    }
-
-    // Order exists but email doesn't match
-    return { order: data.orders[0], emailMatch: false };
-
-  } catch (error) {
-    console.error('Shopify API error:', error);
-    throw error;
-  }
-}
-
-function validateOrderForDelivery(order) {
-  // Check if order is cancelled
-  if (order.cancelled_at) {
-    return {
-      valid: false,
-      reason: 'Order has been cancelled',
-      details: 'This order was cancelled and cannot be processed for delivery.'
-    };
-  }
-
-  // Check if order has been refunded
-  if (order.financial_status === 'refunded') {
-    return {
-      valid: false,
-      reason: 'Order has been refunded',
-      details: 'This order was refunded and cannot be processed for delivery.'
-    };
-  }
-
-  // Check payment status
-  if (order.financial_status !== 'paid' && order.financial_status !== 'partially_paid') {
-    return {
-      valid: false,
-      reason: 'Payment not completed',
-      details: 'This order has not been paid for yet. Please complete payment first.'
-    };
-  }
-
-  return { valid: true };
-}
-
-function formatOrderItems(lineItems) {
-  if (!lineItems || lineItems.length === 0) {
-    return 'No items found';
-  }
-
-  return lineItems.map(item => 
-    `${item.quantity}x ${item.name} (${item.variant_title || 'Default'})`
-  ).join(', ');
 }
 
 // UTILITY FUNCTIONS
@@ -718,7 +782,7 @@ export default async function handler(req, res) {
 
     // Handle different request types
     if (action === 'verify_order' && orderNumber && email) {
-      console.log('📋 Processing order verification...');
+      console.log('📋 Processing order verification with GraphQL...');
       return await handleOrderVerification(req, res, orderNumber, email);
     }
     
@@ -727,7 +791,7 @@ export default async function handler(req, res) {
       return await handleUsernameVerification(req, res, username);
     }
 
-    // FIRESTORE: Handle delivery registration
+    // Handle delivery registration
     if (action === 'register_delivery' && deliveryData) {
       console.log('🚀 Processing delivery registration with Firestore...');
       return await handleDeliveryRegistration(req, res, deliveryData);
