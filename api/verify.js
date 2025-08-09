@@ -2,7 +2,7 @@ import crypto from 'crypto';
 
 const DEBUG_MODE = process.env.NODE_ENV === 'development';
 
-// UPDATED: Airtable Integration with AG Orders table name
+// FIXED: Better Airtable Integration with proper error handling
 async function saveToAirtable(deliveryData) {
   if (!process.env.AIRTABLE_API_KEY || !process.env.AIRTABLE_BASE_ID) {
     console.error('❌ Missing Airtable environment variables');
@@ -15,39 +15,73 @@ async function saveToAirtable(deliveryData) {
     const registrationId = generateDeliveryId();
     const timestamp = new Date().toISOString();
     
-    // Prepare the record data
+    // First, let's discover what tables actually exist in your base
+    const tablesResponse = await fetch(`https://api.airtable.com/v0/meta/bases/${process.env.AIRTABLE_BASE_ID}/tables`, {
+      headers: {
+        'Authorization': `Bearer ${process.env.AIRTABLE_API_KEY}`,
+        'Content-Type': 'application/json'
+      }
+    });
+
+    let availableTables = [];
+    if (tablesResponse.ok) {
+      const tablesData = await tablesResponse.json();
+      availableTables = tablesData.tables?.map(t => t.name) || [];
+      console.log('🔍 Available tables in base:', availableTables);
+    } else {
+      console.warn('⚠️ Could not fetch table list, trying predefined names');
+    }
+    
+    // Prepare the record data with better field mapping
     const recordData = {
       "Registration ID": registrationId,
       "Timestamp": timestamp,
-      "Order Number": deliveryData.order.orderNumber || 'N/A',
-      "Email": deliveryData.order.email || 'N/A',
-      "Roblox Username": deliveryData.roblox.username || 'N/A',
-      "User ID": deliveryData.roblox.userId || 'N/A',
-      "Items": deliveryData.order.items || 'Digital Items',
-      "Order Total": deliveryData.order.total || 'N/A',
+      "Order Number": deliveryData.order?.orderNumber || 'N/A',
+      "Email": deliveryData.order?.email || 'N/A',
+      "Roblox Username": deliveryData.roblox?.username || 'N/A',
+      "User ID": deliveryData.roblox?.userId?.toString() || 'N/A',
+      "Items": deliveryData.order?.items || 'Digital Items',
+      "Order Total": deliveryData.order?.total || 'N/A',
       "Status": 'Pending Delivery',
       "Notes": '',
       "Server Join Time": deliveryData.serverJoinTime || timestamp
     };
 
-    // Try different table name formats - updated for AG Orders
+    console.log('📝 Record data prepared:', recordData);
+
+    // Try available tables first, then fallbacks
     const tableNames = [
-      'AG Orders',  // Your new table name
+      ...availableTables, // Use discovered table names first
+      'AG Orders',  // Your intended table name
       'Orders', // Fallback
-      'Table 1' // Default name fallback
+      'Table 1', // Default name fallback
+      'tblMain', // Another common pattern
+      'Main' // Simple fallback
     ];
+
+    // Remove duplicates
+    const uniqueTableNames = [...new Set(tableNames)];
+    console.log('🎯 Will try these table names:', uniqueTableNames);
 
     let lastError;
     
-    for (const tableName of tableNames) {
+    for (const tableName of uniqueTableNames) {
       try {
-        console.log(`Trying table name: "${tableName}"`);
+        console.log(`🔍 Trying table: "${tableName}"`);
         
-        // Simple encoding for clean table names
+        // Use proper URL encoding for table names
         const encodedTableName = encodeURIComponent(tableName);
         const url = `https://api.airtable.com/v0/${process.env.AIRTABLE_BASE_ID}/${encodedTableName}`;
         
-        console.log(`Trying URL: ${url}`);
+        console.log(`📤 Request URL: ${url}`);
+        
+        const requestBody = {
+          records: [{
+            fields: recordData
+          }]
+        };
+        
+        console.log('📤 Request body:', JSON.stringify(requestBody, null, 2));
         
         const response = await fetch(url, {
           method: 'POST',
@@ -55,39 +89,65 @@ async function saveToAirtable(deliveryData) {
             'Authorization': `Bearer ${process.env.AIRTABLE_API_KEY}`,
             'Content-Type': 'application/json',
           },
-          body: JSON.stringify({
-            records: [{
-              fields: recordData
-            }]
-          })
+          body: JSON.stringify(requestBody)
         });
 
         const responseText = await response.text();
-        console.log(`Response for ${tableName}:`, response.status, responseText);
+        console.log(`📥 Response for "${tableName}":`, {
+          status: response.status,
+          statusText: response.statusText,
+          body: responseText
+        });
 
         if (response.ok) {
           const result = JSON.parse(responseText);
-          console.log('✅ Successfully saved to Airtable:', result.records[0].id);
+          console.log('✅ Successfully saved to Airtable table:', tableName);
+          console.log('📋 Record ID:', result.records[0].id);
           
           return {
             success: true,
             registrationId,
             airtableId: result.records[0].id,
             recordsAdded: result.records.length,
-            tableName
+            tableName,
+            availableTables // Include for debugging
           };
         } else {
-          lastError = `${response.status}: ${responseText}`;
+          // Parse error response
+          let errorDetails;
+          try {
+            errorDetails = JSON.parse(responseText);
+          } catch (e) {
+            errorDetails = { message: responseText };
+          }
+          
+          lastError = {
+            status: response.status,
+            statusText: response.statusText,
+            error: errorDetails,
+            tableName
+          };
+          
+          console.log(`❌ Failed with table "${tableName}":`, lastError);
+          
+          // If it's a permission error, log more details
+          if (response.status === 403) {
+            console.error('🔒 Permission denied - check your API key permissions');
+          }
+          if (response.status === 404) {
+            console.error('🔍 Table not found - table name might be wrong');
+          }
         }
         
       } catch (tableError) {
-        console.log(`Failed with table ${tableName}:`, tableError.message);
-        lastError = tableError.message;
+        console.log(`💥 Exception with table "${tableName}":`, tableError.message);
+        lastError = { tableName, error: tableError.message };
         continue;
       }
     }
     
-    throw new Error(`All table names failed. Last error: ${lastError}`);
+    // If we get here, all attempts failed
+    throw new Error(`All table attempts failed. Available tables: ${availableTables.join(', ')}. Last error: ${JSON.stringify(lastError)}`);
 
   } catch (error) {
     console.error('❌ Airtable save error:', error);
@@ -101,6 +161,7 @@ function generateDeliveryId() {
   return `DEL_${timestamp}_${random}`;
 }
 
+// FIXED: Async/await delivery registration handler
 async function handleDeliveryRegistration(req, res, deliveryData) {
   console.log('📦 Processing Delivery Registration...');
   
@@ -109,12 +170,20 @@ async function handleDeliveryRegistration(req, res, deliveryData) {
     if (!deliveryData.order || !deliveryData.roblox) {
       return res.status(400).json({ 
         error: 'Missing required delivery data',
-        required: ['order', 'roblox']
+        required: ['order', 'roblox'],
+        received: {
+          hasOrder: !!deliveryData.order,
+          hasRoblox: !!deliveryData.roblox
+        }
       });
     }
 
-    // Save to Airtable
+    console.log('📊 Starting Airtable save...');
+    
+    // FIXED: Properly await the Airtable save operation
     const airtableResult = await saveToAirtable(deliveryData);
+    
+    console.log('✅ Airtable save completed:', airtableResult);
     
     // Prepare response
     const registrationRecord = {
@@ -133,7 +202,8 @@ async function handleDeliveryRegistration(req, res, deliveryData) {
       status: 'pending_delivery',
       savedToAirtable: true,
       airtableId: airtableResult.airtableId,
-      tableName: airtableResult.tableName
+      tableName: airtableResult.tableName,
+      availableTables: airtableResult.availableTables // For debugging
     };
     
     console.log('✅ Delivery registration successful:', registrationRecord.registrationId);
@@ -148,16 +218,21 @@ async function handleDeliveryRegistration(req, res, deliveryData) {
   } catch (error) {
     console.error('❌ Delivery registration failed:', error);
     
-    // Return error but don't completely fail - user can still join server
+    // Return more detailed error info
     return res.status(500).json({ 
       error: 'Failed to save delivery request',
       message: error.message,
-      canContinue: true // Let frontend know user can still proceed
+      canContinue: true, // Let frontend know user can still proceed
+      details: {
+        hasAirtableConfig: !!(process.env.AIRTABLE_API_KEY && process.env.AIRTABLE_BASE_ID),
+        errorType: error.name || 'Unknown',
+        timestamp: new Date().toISOString()
+      }
     });
   }
 }
 
-// MAIN HANDLER
+// MAIN HANDLER with better debugging
 export default async function handler(req, res) {
   // Set CORS headers
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -175,46 +250,59 @@ export default async function handler(req, res) {
   try {
     const { orderNumber, email, username, action, deliveryData } = req.body;
     
-    console.log('API Request received:', { 
+    console.log('🔍 API Request received:', { 
       orderNumber: !!orderNumber, 
       email: !!email, 
       username: !!username, 
       action: action || 'none',
-      hasDeliveryData: !!deliveryData
+      hasDeliveryData: !!deliveryData,
+      timestamp: new Date().toISOString()
     });
 
-    // Debug/Test endpoint
+    // ENHANCED: Test endpoint with better diagnostics
     if (action === 'test_airtable') {
       try {
-        // Test just listing tables in your base
-        const response = await fetch(`https://api.airtable.com/v0/meta/bases/${process.env.AIRTABLE_BASE_ID}/tables`, {
+        console.log('🧪 Testing Airtable connection...');
+        
+        const testResponse = await fetch(`https://api.airtable.com/v0/meta/bases/${process.env.AIRTABLE_BASE_ID}/tables`, {
           headers: {
             'Authorization': `Bearer ${process.env.AIRTABLE_API_KEY}`,
           }
         });
         
-        const result = await response.json();
-        console.log('Available tables:', result);
+        const responseText = await testResponse.text();
+        console.log('🔍 Test response:', { status: testResponse.status, body: responseText });
+        
+        let result;
+        try {
+          result = JSON.parse(responseText);
+        } catch (parseError) {
+          result = { error: 'Could not parse response', raw: responseText };
+        }
         
         return res.status(200).json({
-          success: response.ok,
-          status: response.status,
-          tables: result.tables?.map(t => ({ id: t.id, name: t.name })) || [],
-          baseId: process.env.AIRTABLE_BASE_ID?.substring(0, 10) + '...', // Partial for security
+          success: testResponse.ok,
+          status: testResponse.status,
+          statusText: testResponse.statusText,
+          tables: result.tables?.map(t => ({ id: t.id, name: t.name, fields: t.fields?.length })) || [],
+          baseId: process.env.AIRTABLE_BASE_ID?.substring(0, 10) + '...',
           hasApiKey: !!process.env.AIRTABLE_API_KEY,
-          apiKeyPrefix: process.env.AIRTABLE_API_KEY?.substring(0, 4) + '...'
+          apiKeyPrefix: process.env.AIRTABLE_API_KEY?.substring(0, 8) + '...',
+          errorDetails: result.error || null,
+          rawResponse: result
         });
         
       } catch (error) {
         return res.status(500).json({ 
           error: error.message,
           baseId: !!process.env.AIRTABLE_BASE_ID,
-          hasApiKey: !!process.env.AIRTABLE_API_KEY
+          hasApiKey: !!process.env.AIRTABLE_API_KEY,
+          stack: error.stack
         });
       }
     }
 
-    // Method 1: Check by action parameter
+    // Handle different request types
     if (action === 'verify_order' && orderNumber && email) {
       return await handleOrderVerification(req, res, orderNumber, email);
     }
@@ -223,24 +311,24 @@ export default async function handler(req, res) {
       return await handleUsernameVerification(req, res, username);
     }
 
-    // Handle delivery registration with Airtable
+    // FIXED: Handle delivery registration with proper async/await
     if (action === 'register_delivery' && deliveryData) {
       return await handleDeliveryRegistration(req, res, deliveryData);
     }
 
-    // Method 2: Fallback - determine by parameters present
+    // Fallback method detection
     if (orderNumber && email && !username) {
-      console.log('Detected order verification request');
+      console.log('🔍 Detected order verification request');
       return await handleOrderVerification(req, res, orderNumber, email);
     }
     
     if (username && !orderNumber && !email) {
-      console.log('Detected username verification request');
+      console.log('🔍 Detected username verification request');
       return await handleUsernameVerification(req, res, username);
     }
 
-    // If we get here, the request format is wrong
-    console.log('Invalid request format');
+    // Invalid request format
+    console.log('❌ Invalid request format');
     return res.status(400).json({ 
       error: 'Invalid request parameters',
       received: { orderNumber: !!orderNumber, email: !!email, username: !!username, action, hasDeliveryData: !!deliveryData },
@@ -248,15 +336,16 @@ export default async function handler(req, res) {
     });
 
   } catch (error) {
-    console.error('Unexpected API error:', error);
+    console.error('💥 Unexpected API error:', error);
     return res.status(500).json({ 
       error: 'Internal server error',
-      message: error.message
+      message: error.message,
+      stack: DEBUG_MODE ? error.stack : undefined
     });
   }
 }
 
-// ORDER VERIFICATION FUNCTION
+// ORDER VERIFICATION FUNCTION (keeping existing code)
 async function handleOrderVerification(req, res, orderNumber, email) {
   console.log(`🔍 Shopify Order Verification: ${orderNumber} for ${email}`);
   
@@ -534,7 +623,7 @@ function formatOrderItems(lineItems) {
   }).join(', ');
 }
 
-// ROBLOX USERNAME VERIFICATION
+// ROBLOX USERNAME VERIFICATION (keeping existing code)
 async function handleUsernameVerification(req, res, username) {
   console.log(`🎮 Roblox Username Verification: ${username}`);
   
