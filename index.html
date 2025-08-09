@@ -5,10 +5,10 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Affordable.Garden Delivery Page</title>
   
+  <!-- Load Poppins font -->
   <link href="https://fonts.googleapis.com/css2?family=Poppins&display=swap" rel="stylesheet" />
   
   <style>
-    /* Keep all your existing styles */
     * {
       margin: 0; padding: 0; box-sizing: border-box;
     }
@@ -123,6 +123,7 @@
     .btn.delivery:hover {
       box-shadow: 0 12px 25px rgba(21, 101, 192, 0.4);
     }
+    
     .btn.friend-request {
       background: linear-gradient(45deg, #4CAF50, #66BB6A);
       font-size: 16px;
@@ -132,6 +133,7 @@
     .btn.friend-request:hover {
       box-shadow: 0 12px 25px rgba(76, 175, 80, 0.4);
     }
+    
     .profile-avatar {
       width: 120px; height: 120px;
       border-radius: 50%;
@@ -147,15 +149,18 @@
       font-size: 18px; color: #555;
       margin-bottom: 25px;
     }
+    
     .profile-buttons {
       display: flex;
       gap: 15px;
       width: 100%;
     }
+    
     .profile-buttons .btn {
       margin-bottom: 0;
       flex: 1;
     }
+    
     .loading {
       display: inline-block; width: 20px; height: 20px;
       border: 3px solid #f3f3f3;
@@ -257,6 +262,7 @@
       color: #333;
       font-weight: 500;
     }
+    
     .order-status {
       background: #e8f5e9;
       color: #2e7d32;
@@ -266,35 +272,17 @@
       border-left: 4px solid #4caf50;
     }
     
-    /* VERCEL DIAGNOSTIC STYLES */
-    .diagnostic-btn {
-      background: linear-gradient(45deg, #ff6b6b, #ff8e8e);
-      color: white;
-      margin: 10px;
-      padding: 12px 24px;
-      font-size: 14px;
-    }
-    .diagnostic-results {
-      background: #f8f9fa;
-      border: 2px solid #e9ecef;
-      border-radius: 10px;
-      padding: 15px;
-      margin: 15px 0;
-      text-align: left;
-      font-family: 'Courier New', monospace;
-      font-size: 12px;
-      max-height: 300px;
-      overflow-y: auto;
-    }
-    
+    /* Mobile Responsive */
     @media (max-width: 768px) {
       .container {
         max-width: 500px;
         padding: 30px 20px;
       }
+      
       .profile-buttons {
         flex-direction: column;
       }
+      
       .profile-buttons .btn {
         width: 100%;
       }
@@ -307,21 +295,7 @@
       <img src="https://cdn.shopify.com/s/files/1/0943/2311/4269/files/sittingon-Photoroom-Photoroom.png?v=1754625898" alt="Affordable Garden Raccoon Logo" />
     </div>
     <h1>Affordable.Garden Delivery Page</h1>
-    <p class="subtitle">Order Verification & Delivery (Vercel Optimized)</p>
-
-    <!-- VERCEL DIAGNOSTICS SECTION -->
-    <div style="margin-bottom: 30px; padding: 15px; background: #fff3cd; border-radius: 10px; border-left: 4px solid #ffc107;">
-      <strong>🔧 Vercel Diagnostics (Troubleshooting)</strong>
-      <div style="margin-top: 10px;">
-        <button class="btn diagnostic-btn" onclick="runVercelDiagnostics()">
-          🔍 Test Vercel Connection
-        </button>
-        <button class="btn diagnostic-btn" onclick="testDirectWebhook()">
-          🪝 Test Direct Save
-        </button>
-      </div>
-      <div id="diagnosticResults" class="diagnostic-results" style="display: none;"></div>
-    </div>
+    <p class="subtitle">Order Verification & Delivery</p>
 
     <div class="step-indicator">
       <div class="step-dot active" id="dot1"></div>
@@ -329,4 +303,589 @@
       <div class="step-dot" id="dot3"></div>
     </div>
 
-    <!-- Keep all your existing steps exactly the same
+    <!-- Step 1: Order Verification -->
+    <div class="step active" id="step1">
+      <div style="max-width: 500px; margin: 0 auto;">
+        <div class="form-group">
+          <label for="orderNumber">Order Number:</label>
+          <input
+            type="text"
+            id="orderNumber"
+            placeholder="Example: AG-1002"
+            required
+            autocomplete="off"
+          />
+          <div id="orderValidation" class="validation-message" style="display: none;"></div>
+        </div>
+
+        <div class="form-group">
+          <label for="emailAddress">Email Address:</label>
+          <input
+            type="email"
+            id="emailAddress"
+            placeholder="your.email@example.com"
+            required
+            autocomplete="email"
+          />
+          <div id="emailValidation" class="validation-message" style="display: none;"></div>
+        </div>
+
+        <button class="btn" onclick="verifyOrder()" id="verifyOrderBtn">
+          Verify Order
+        </button>
+      </div>
+      
+      <div class="note">
+        <strong>Required:</strong> Enter your order number and email address from your Shopify purchase. These must match our records to proceed.
+      </div>
+    </div>
+
+    <!-- Step 2: Roblox Username Verification -->
+    <div class="step" id="step2">
+      <div style="max-width: 500px; margin: 0 auto;">
+        <div class="order-status" id="orderStatus"></div>
+        
+        <!-- Profile section moved above username input -->
+        <div id="profileSection" style="display: none; margin-bottom: 30px;">
+          <div class="profile-card">
+            <div id="profileContent"></div>
+          </div>
+        </div>
+        
+        <div class="form-group">
+          <label for="robloxUsername">Enter your Roblox Username:</label>
+          <input
+            type="text"
+            id="robloxUsername"
+            placeholder="YourRobloxUsername"
+            required
+            autocomplete="off"
+          />
+        </div>
+
+        <button class="btn" onclick="verifyUsername()" id="verifyBtn">
+          Verify Username
+        </button>
+        <button class="btn secondary" onclick="goBack(1)">Go Back</button>
+      </div>
+      
+      <div class="note">
+        Make sure your username is spelled exactly right (case-sensitive)
+      </div>
+    </div>
+
+    <!-- Step 3: Join Delivery Server -->
+    <div class="step" id="step3">
+      <h2 style="color: #333; margin-bottom: 25px;">Ready for Delivery!</h2>
+      
+      <div class="summary-card">
+        <div class="summary-item">
+          <span class="summary-label">Order Number:</span>
+          <span class="summary-value" id="summaryOrder"></span>
+        </div>
+        <div class="summary-item">
+          <span class="summary-label">Email Address:</span>
+          <span class="summary-value" id="summaryEmail"></span>
+        </div>
+        <div class="summary-item">
+          <span class="summary-label">Roblox Username:</span>
+          <span class="summary-value" id="summaryUsername"></span>
+        </div>
+        <div class="summary-item">
+          <span class="summary-label">Status:</span>
+          <span class="summary-value" style="color: #4CAF50; font-weight: bold;">✅ Verified</span>
+        </div>
+      </div>
+
+      <div style="display: flex; justify-content: center; margin: 30px 0;">
+        <img id="summaryAvatar" class="profile-avatar" src="" alt="Profile Picture" />
+      </div>
+      
+      <div style="color: #666; margin-bottom: 30px;">
+        Click the button below to friend our delivery staff, then join our private Roblox server for your delivery
+      </div>
+
+      <button class="btn friend-request" onclick="friendDeliveryStaff()">
+        👥 Friend meow82412 (Delivery Person)
+      </button>
+
+      <button class="btn delivery" onclick="joinDeliveryServer()">
+        🚀 Join Delivery Server
+      </button>
+      
+      <button class="btn secondary" onclick="goBack(2)" style="margin-top: 10px;">Go Back</button>
+
+      <div class="note" style="margin-top: 20px; background: #cce0ff; color: #0b3d91; border-left: 4px solid #1952d4;">
+        <strong>Important:</strong> Please friend our delivery staff first, then join the server and wait for a staff member to deliver your items. Keep this page open for reference.
+      </div>
+    </div>
+
+    <!-- Error/Success Messages -->
+    <div id="errorMessage" class="error-message" style="display: none"></div>
+    <div id="successMessage" class="success-message" style="display: none"></div>
+  </div>
+
+  <script>
+    let currentUserData = null;
+    let currentOrderData = null;
+    let currentStep = 1;
+
+    function updateStepIndicator(step) {
+      for (let i = 1; i <= 3; i++) {
+        const dot = document.getElementById(`dot${i}`);
+        dot.classList.remove('active', 'completed');
+        
+        if (i < step) {
+          dot.classList.add('completed');
+        } else if (i === step) {
+          dot.classList.add('active');
+        }
+      }
+    }
+
+    function showStep(stepNumber) {
+      currentStep = stepNumber;
+      document.querySelectorAll('.step').forEach((step) =>
+        step.classList.remove('active')
+      );
+      document.getElementById('step' + stepNumber).classList.add('active');
+      updateStepIndicator(stepNumber);
+      
+      // Clear messages when changing steps
+      document.getElementById('errorMessage').style.display = 'none';
+      document.getElementById('successMessage').style.display = 'none';
+    }
+
+    function displayUserProfile(userData) {
+      const profileSection = document.getElementById('profileSection');
+      const profileContent = document.getElementById('profileContent');
+      
+      profileSection.style.display = 'block';
+      
+      const avatarImg = document.createElement('img');
+      avatarImg.className = 'profile-avatar';
+      avatarImg.alt = `${userData.username}'s Avatar`;
+      
+      // Set up avatar with fallback handling
+      avatarImg.onerror = function() {
+        console.log('Avatar failed to load, trying fallback...');
+        
+        const fallbackUrls = [
+          `https://www.roblox.com/bust-thumbnail/image?userId=${userData.userId}&width=150&height=150&format=png`,
+          `https://www.roblox.com/headshot-thumbnail/image?userId=${userData.userId}&width=150&height=150&format=png&t=${Date.now()}`,
+          `https://www.roblox.com/headshot-thumbnail/image?userId=${userData.userId}&width=100&height=100&format=png`,
+        ];
+        
+        const currentSrc = this.src;
+        const nextIndex = fallbackUrls.findIndex(url => url.split('&t=')[0] === currentSrc.split('&t=')[0]) + 1;
+        
+        if (nextIndex < fallbackUrls.length) {
+          this.src = fallbackUrls[nextIndex];
+        } else {
+          // Create placeholder avatar
+          this.src = 'data:image/svg+xml,' + encodeURIComponent(`
+            <svg xmlns="http://www.w3.org/2000/svg" width="150" height="150" viewBox="0 0 150 150">
+              <rect width="150" height="150" fill="#4CAF50"/>
+              <circle cx="75" cy="60" r="25" fill="white"/>
+              <rect x="55" y="90" width="40" height="40" rx="20" fill="white"/>
+              <text x="75" y="130" font-family="Arial" font-size="10" fill="white" text-anchor="middle">${userData.username}</text>
+            </svg>
+          `);
+        }
+      };
+      
+      const avatarUrl = userData.avatar.includes('?') 
+        ? `${userData.avatar}&t=${Date.now()}`
+        : `${userData.avatar}?t=${Date.now()}`;
+        
+      avatarImg.src = avatarUrl;
+      
+      const profileName = document.createElement('div');
+      profileName.className = 'profile-name';
+      profileName.textContent = userData.username;
+      
+      const profileQuestion = document.createElement('div');
+      profileQuestion.className = 'profile-question';
+      profileQuestion.textContent = 'Is this your Roblox account?';
+      
+      const buttonsDiv = document.createElement('div');
+      buttonsDiv.className = 'profile-buttons';
+      
+      const confirmBtn = document.createElement('button');
+      confirmBtn.className = 'btn';
+      confirmBtn.textContent = 'Yes, that\'s me!';
+      confirmBtn.onclick = () => {
+        // Update summary for final step
+        document.getElementById('summaryOrder').textContent = currentOrderData.orderNumber;
+        document.getElementById('summaryUsername').textContent = currentUserData.username;
+        document.getElementById('summaryEmail').textContent = currentOrderData.email;
+        document.getElementById('summaryAvatar').src = currentUserData.avatar;
+        confirmProfile();
+      };
+      
+      const retryBtn = document.createElement('button');
+      retryBtn.className = 'btn secondary';
+      retryBtn.textContent = 'Try again';
+      retryBtn.onclick = () => goBack(2);
+      
+      buttonsDiv.appendChild(confirmBtn);
+      buttonsDiv.appendChild(retryBtn);
+      
+      profileContent.innerHTML = '';
+      profileContent.appendChild(avatarImg);
+      profileContent.appendChild(profileName);
+      profileContent.appendChild(profileQuestion);
+      profileContent.appendChild(buttonsDiv);
+    }
+
+    function showError(message) {
+      const errorEl = document.getElementById('errorMessage');
+      errorEl.textContent = message;
+      errorEl.style.display = 'block';
+      setTimeout(() => {
+        errorEl.style.display = 'none';
+      }, 10000);
+    }
+
+    function showSuccess(message) {
+      const successEl = document.getElementById('successMessage');
+      successEl.textContent = message;
+      successEl.style.display = 'block';
+    }
+
+    function showValidation(elementId, message, isValid) {
+      const validationEl = document.getElementById(elementId);
+      const inputEl = document.getElementById(elementId.replace('Validation', ''));
+      
+      if (validationEl) {
+        validationEl.textContent = message;
+        validationEl.className = `validation-message ${isValid ? 'success' : 'error'}`;
+        validationEl.style.display = 'block';
+      }
+      
+      if (inputEl) {
+        inputEl.className = isValid ? 'valid' : 'error';
+      }
+    }
+
+    function validateEmailFormat(email) {
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      return emailRegex.test(email);
+    }
+
+    async function verifyOrder() {
+      const orderNumber = document.getElementById('orderNumber').value.trim();
+      const email = document.getElementById('emailAddress').value.trim();
+      const verifyBtn = document.getElementById('verifyOrderBtn');
+
+      // Reset validation states
+      document.getElementById('orderValidation').style.display = 'none';
+      document.getElementById('emailValidation').style.display = 'none';
+      document.getElementById('orderNumber').className = '';
+      document.getElementById('emailAddress').className = '';
+
+      if (!orderNumber) {
+        showValidation('orderValidation', 'Please enter your order number', false);
+        return;
+      }
+
+      if (!email) {
+        showValidation('emailValidation', 'Please enter your email address', false);
+        return;
+      }
+
+      if (!validateEmailFormat(email)) {
+        showValidation('emailValidation', 'Please enter a valid email format', false);
+        return;
+      }
+
+      verifyBtn.innerHTML = '<span class="loading"></span>Verifying Order...';
+      verifyBtn.disabled = true;
+
+      try {
+        console.log('Sending order verification request:', { orderNumber, email });
+        
+        const response = await fetch('https://claim-page-one.vercel.app/api/verify', {
+          method: 'POST',
+          headers: { 
+            'Content-Type': 'application/json',
+            'Accept': 'application/json'
+          },
+          body: JSON.stringify({ 
+            orderNumber: orderNumber,
+            email: email,
+            action: 'verify_order'
+          }),
+        });
+
+        const responseText = await response.text();
+        console.log('Raw response:', responseText);
+        
+        let orderData;
+        
+        try {
+          orderData = JSON.parse(responseText);
+        } catch (parseError) {
+          console.error('JSON parse error:', parseError);
+          throw new Error(`Server returned invalid response format`);
+        }
+
+        console.log('Parsed response:', orderData);
+
+        if (!response.ok) {
+          if (response.status === 404) {
+            showError(orderData.error || 'Order not found. Please check your order number and email address.');
+          } else if (response.status === 400) {
+            showError(orderData.error || 'Invalid order information provided.');
+          } else {
+            showError(orderData.error || `Server error: ${response.status}`);
+          }
+          return;
+        }
+
+        currentOrderData = orderData;
+        
+        // Show order status
+        const orderStatus = document.getElementById('orderStatus');
+        orderStatus.innerHTML = `
+          <strong>✅ Order Verified!</strong><br>
+          Order #${orderData.orderNumber} found for ${orderData.email}<br>
+          <em>Items: ${orderData.items || 'Digital delivery items'}</em>
+        `;
+        
+        showStep(2);
+        
+      } catch (error) {
+        console.error('Order verification error:', error);
+        showError(`Error verifying order: ${error.message}`);
+      } finally {
+        verifyBtn.innerHTML = 'Verify Order';
+        verifyBtn.disabled = false;
+      }
+    }
+
+    async function verifyUsername() {
+      const username = document.getElementById('robloxUsername').value.trim();
+      const verifyBtn = document.getElementById('verifyBtn');
+
+      if (!username) {
+        showError('Please enter a username');
+        return;
+      }
+
+      if (username.length < 3 || username.length > 20) {
+        showError('Username must be between 3-20 characters');
+        return;
+      }
+
+      if (!/^[a-zA-Z0-9_]+$/.test(username)) {
+        showError('Username can only contain letters, numbers, and underscores');
+        return;
+      }
+
+      verifyBtn.innerHTML = '<span class="loading"></span>Verifying...';
+      verifyBtn.disabled = true;
+
+      try {
+        const response = await fetch('https://claim-page-one.vercel.app/api/verify', {
+          method: 'POST',
+          headers: { 
+            'Content-Type': 'application/json',
+            'Accept': 'application/json'
+          },
+          body: JSON.stringify({ 
+            username: username,
+            action: 'verify_username' 
+          }),
+        });
+
+        const responseText = await response.text();
+        let userData;
+        
+        try {
+          userData = JSON.parse(responseText);
+        } catch (parseError) {
+          throw new Error(`Invalid JSON response: ${parseError.message}`);
+        }
+
+        if (!response.ok) {
+          showError(userData.error || `Server error: ${response.status}`);
+          return;
+        }
+
+        currentUserData = {
+          username: userData.username,
+          avatar: userData.avatarUrl,
+          userId: userData.userId,
+        };
+
+        displayUserProfile(currentUserData);
+      } catch (error) {
+        console.error('Verification error:', error);
+        showError(`Error: ${error.message}`);
+      } finally {
+        verifyBtn.innerHTML = 'Verify Username';
+        verifyBtn.disabled = false;
+      }
+    }
+
+    function confirmProfile() {
+      if (!currentUserData || !currentOrderData) return;
+      showStep(3);
+    }
+
+    function friendDeliveryStaff() {
+      showSuccess('🎉 Opening meow82412\'s profile for friend request...');
+      
+      setTimeout(() => {
+        window.open('https://www.roblox.com/users/8579897302/profile', '_blank');
+        
+        setTimeout(() => {
+          alert(`Profile opened! If it didn't open automatically, copy this link:\n\nhttps://www.roblox.com/users/8579897302/profile\n\nPlease send a friend request to meow82412 before joining the delivery server.`);
+        }, 1000);
+      }, 500);
+    }
+
+    // Updated joinDeliveryServer function with registration tracking
+    async function joinDeliveryServer() {
+      if (!currentUserData || !currentOrderData) {
+        showError('Missing required information');
+        return;
+      }
+      const finalData = {
+        order: currentOrderData,
+        roblox: currentUserData,
+        timestamp: new Date().toISOString(),
+        serverJoinTime: new Date().toISOString()
+      };
+      
+      console.log('Final registration data:', finalData);
+      
+      // Show immediate feedback
+      showSuccess(`🎉 Welcome ${currentUserData.username}! Saving registration...`);
+      
+      try {
+        // Send data to Google Sheets
+        console.log('📊 Sending delivery registration to backend...');
+        
+        const response = await fetch('https://claim-page-one.vercel.app/api/verify', {
+          method: 'POST',
+          headers: { 
+            'Content-Type': 'application/json',
+            'Accept': 'application/json'
+          },
+          body: JSON.stringify({ 
+            action: 'register_delivery',
+            deliveryData: finalData
+          }),
+        });
+        const responseText = await response.text();
+        console.log('Registration API response:', responseText);
+        
+        let result;
+        try {
+          result = JSON.parse(responseText);
+        } catch (parseError) {
+          console.error('Failed to parse registration response:', parseError);
+          console.error('Raw response:', responseText);
+          throw new Error('Invalid response format from server');
+        }
+        if (response.ok && result.success) {
+          console.log('✅ Delivery registration successful:', result);
+          showSuccess(`✅ Registration saved! ID: ${result.registrationId} - Opening server...`);
+          
+          // Optional: Store the registration ID for reference
+          localStorage.setItem('lastRegistrationId', result.registrationId);
+          
+        } else {
+          console.error('❌ Registration failed:', result);
+          if (result.canContinue) {
+            showError('⚠️ Registration failed to save, but you can still join the server');
+          } else {
+            showError(`Registration error: ${result.error || 'Unknown error'}`);
+          }
+        }
+      } catch (error) {
+        console.error('Registration request failed:', error);
+        showError('⚠️ Could not save registration - continuing to server anyway...');
+      }
+      
+      // Always continue with opening the server (even if registration fails)
+      setTimeout(() => {
+        showSuccess(`🚀 Opening delivery server for ${currentUserData.username}...`);
+        
+        setTimeout(() => {
+          window.open('https://www.roblox.com/share?code=3f541f34634d5a448517bd05693722a1&type=Server', '_blank');
+          
+          setTimeout(() => {
+            const registrationId = localStorage.getItem('lastRegistrationId');
+            const idText = registrationId ? `\n\nRegistration ID: ${registrationId}` : '';
+            
+            alert(`Server opened! If it didn't open automatically, copy this link:\n\nhttps://www.roblox.com/share?code=3f541f34634d5a448517bd05693722a1&type=Server\n\nPlease wait in the server for a staff member to deliver your items.${idText}`);
+          }, 1000);
+        }, 1500);
+      }, 1000);
+    }
+
+    function goBack(toStep) {
+      if (toStep === 1) {
+        currentOrderData = null;
+        document.getElementById('orderNumber').value = '';
+        document.getElementById('emailAddress').value = '';
+        document.getElementById('orderValidation').style.display = 'none';
+        document.getElementById('emailValidation').style.display = 'none';
+        document.getElementById('orderNumber').className = '';
+        document.getElementById('emailAddress').className = '';
+      } else if (toStep === 2) {
+        currentUserData = null;
+        document.getElementById('robloxUsername').value = '';
+        const profileSection = document.getElementById('profileSection');
+        const profileContent = document.getElementById('profileContent');
+        profileSection.style.display = 'none';
+        profileContent.innerHTML = '';
+      }
+      
+      showStep(toStep);
+    }
+
+    // Event listeners
+    document.getElementById('orderNumber').addEventListener('keypress', function (e) {
+      if (e.key === 'Enter') {
+        document.getElementById('emailAddress').focus();
+      }
+    });
+
+    document.getElementById('emailAddress').addEventListener('keypress', function (e) {
+      if (e.key === 'Enter') {
+        verifyOrder();
+      }
+    });
+
+    document.getElementById('robloxUsername').addEventListener('keypress', function (e) {
+      if (e.key === 'Enter') {
+        verifyUsername();
+      }
+    });
+
+    // Real-time email format validation
+    document.getElementById('emailAddress').addEventListener('input', function(e) {
+      const email = e.target.value.trim();
+      const validationEl = document.getElementById('emailValidation');
+      
+      if (email.length === 0) {
+        validationEl.style.display = 'none';
+        e.target.className = '';
+        return;
+      }
+      
+      if (validateEmailFormat(email)) {
+        e.target.className = 'valid';
+        validationEl.style.display = 'none';
+      } else {
+        e.target.className = 'error';
+        showValidation('emailValidation', 'Please enter a valid email format', false);
+      }
+    });
+  </script>
+</body>
+</html>
