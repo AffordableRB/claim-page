@@ -1,1118 +1,1009 @@
-// api/verify.js - Enhanced with Better Debugging and Multiple Search Methods
-import { initializeApp, getApps } from 'firebase/app';
-import { getFirestore, collection, addDoc, serverTimestamp, connectFirestoreEmulator } from 'firebase/firestore';
-import crypto from 'crypto';
-
-const DEBUG_MODE = process.env.NODE_ENV === 'development';
-
-// Initialize Firebase (only once per cold start)
-let app;
-let db;
-let isInitialized = false;
-
-function initFirebase() {
-  if (!isInitialized) {
-    console.log('🔥 Initializing Firebase...');
-    
-    const requiredEnvVars = [
-      'FIREBASE_API_KEY',
-      'FIREBASE_AUTH_DOMAIN', 
-      'FIREBASE_PROJECT_ID',
-      'FIREBASE_STORAGE_BUCKET',
-      'FIREBASE_MESSAGING_SENDER_ID',
-      'FIREBASE_APP_ID'
-    ];
-    
-    const missingVars = requiredEnvVars.filter(varName => !process.env[varName]);
-    if (missingVars.length > 0) {
-      throw new Error(`Missing Firebase environment variables: ${missingVars.join(', ')}`);
-    }
-
-    const firebaseConfig = {
-      apiKey: process.env.FIREBASE_API_KEY,
-      authDomain: process.env.FIREBASE_AUTH_DOMAIN,
-      projectId: process.env.FIREBASE_PROJECT_ID,
-      storageBucket: process.env.FIREBASE_STORAGE_BUCKET,
-      messagingSenderId: process.env.FIREBASE_MESSAGING_SENDER_ID,
-      appId: process.env.FIREBASE_APP_ID
-    };
-    
-    if (getApps().length === 0) {
-      app = initializeApp(firebaseConfig);
-    } else {
-      app = getApps()[0];
-    }
-    
-    db = getFirestore(app);
-    
-    if (DEBUG_MODE && process.env.FIRESTORE_EMULATOR_HOST) {
-      connectFirestoreEmulator(db, 'localhost', 8080);
-    }
-    
-    isInitialized = true;
-    console.log('✅ Firebase initialized successfully');
-  }
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Affordable.Garden Delivery Page</title>
   
-  return db;
-}
-
-// DEBUG FUNCTION FOR SHOPIFY
-async function debugShopifyConnection() {
-  console.log('🔧 SHOPIFY DEBUG TEST STARTING...');
+  <!-- Load Poppins font -->
+  <link href="https://fonts.googleapis.com/css2?family=Poppins&display=swap" rel="stylesheet" />
   
-  const shopDomain = process.env.SHOPIFY_SHOP_DOMAIN;
-  const accessToken = process.env.SHOPIFY_ACCESS_TOKEN;
-  const apiVersion = process.env.SHOPIFY_API_VERSION || '2024-01';
-  
-  const debugInfo = {
-    environment: {
-      shopDomain: shopDomain ? `${shopDomain.substring(0, 8)}***` : 'MISSING',
-      hasAccessToken: !!accessToken,
-      tokenLength: accessToken?.length || 0,
-      tokenStart: accessToken ? `${accessToken.substring(0, 8)}***` : 'MISSING',
-      apiVersion
-    },
-    tests: {}
-  };
-
-  // Test 1: Basic shop info
-  try {
-    console.log('Test 1: Shop connectivity...');
-    const shopUrl = `https://${shopDomain}.myshopify.com/admin/api/${apiVersion}/shop.json`;
-    const shopResponse = await fetch(shopUrl, {
-      headers: {
-        'X-Shopify-Access-Token': accessToken,
-        'Content-Type': 'application/json'
-      }
-    });
-    
-    debugInfo.tests.shopConnectivity = {
-      status: shopResponse.status,
-      ok: shopResponse.ok,
-      statusText: shopResponse.statusText,
-      url: shopUrl.replace(accessToken, 'TOKEN_HIDDEN')
-    };
-    
-    if (shopResponse.ok) {
-      const shopData = await shopResponse.json();
-      debugInfo.tests.shopConnectivity.shopName = shopData.shop?.name;
-      debugInfo.tests.shopConnectivity.domain = shopData.shop?.domain;
-      debugInfo.tests.shopConnectivity.email = shopData.shop?.email;
-    } else {
-      const errorText = await shopResponse.text();
-      debugInfo.tests.shopConnectivity.error = errorText.substring(0, 200);
+  <style>
+    * {
+      margin: 0; padding: 0; box-sizing: border-box;
     }
-  } catch (error) {
-    debugInfo.tests.shopConnectivity = { error: error.message };
-  }
-
-  // Test 2: List recent orders
-  try {
-    console.log('Test 2: Recent orders...');
-    const ordersUrl = `https://${shopDomain}.myshopify.com/admin/api/${apiVersion}/orders.json?limit=10&status=any&fields=id,name,email,order_number,created_at,financial_status`;
-    const ordersResponse = await fetch(ordersUrl, {
-      headers: {
-        'X-Shopify-Access-Token': accessToken,
-        'Content-Type': 'application/json'
-      }
-    });
-    
-    debugInfo.tests.recentOrders = {
-      status: ordersResponse.status,
-      ok: ordersResponse.ok,
-      statusText: ordersResponse.statusText
-    };
-    
-    if (ordersResponse.ok) {
-      const ordersData = await ordersResponse.json();
-      debugInfo.tests.recentOrders.count = ordersData.orders?.length || 0;
-      debugInfo.tests.recentOrders.orders = ordersData.orders?.map(order => ({
-        name: order.name,
-        email: order.email?.substring(0, 5) + '***',
-        order_number: order.order_number,
-        created_at: order.created_at,
-        financial_status: order.financial_status
-      })) || [];
-    } else {
-      const errorText = await ordersResponse.text();
-      debugInfo.tests.recentOrders.error = errorText.substring(0, 200);
+    body {
+      font-family: 'Poppins', sans-serif;
+      background: linear-gradient(135deg, #4CAF50 0%, #2E7D32 100%);
+      min-height: 100vh;
+      display: flex; align-items: center; justify-content: center;
+      padding: 20px;
     }
-  } catch (error) {
-    debugInfo.tests.recentOrders = { error: error.message };
-  }
-
-  // Test 3: Search for order 1014 specifically
-  try {
-    console.log('Test 3: Searching for order 1014...');
-    const searchQueries = ['1014', '#1014', 'AG-1014', 'AF1014'];
-    
-    debugInfo.tests.orderSearch = {};
-    
-    for (const query of searchQueries) {
-      const searchUrl = `https://${shopDomain}.myshopify.com/admin/api/${apiVersion}/orders.json?name=${encodeURIComponent(query)}&limit=5&status=any`;
-      const searchResponse = await fetch(searchUrl, {
-        headers: {
-          'X-Shopify-Access-Token': accessToken,
-          'Content-Type': 'application/json'
-        }
-      });
-      
-      debugInfo.tests.orderSearch[query] = {
-        status: searchResponse.status,
-        ok: searchResponse.ok,
-        url: searchUrl.replace(accessToken, 'TOKEN_HIDDEN')
-      };
-      
-      if (searchResponse.ok) {
-        const searchData = await searchResponse.json();
-        debugInfo.tests.orderSearch[query].count = searchData.orders?.length || 0;
-        debugInfo.tests.orderSearch[query].orders = searchData.orders?.map(order => ({
-          name: order.name,
-          email: order.email?.substring(0, 5) + '***',
-          order_number: order.order_number
-        })) || [];
-      } else {
-        const errorText = await searchResponse.text();
-        debugInfo.tests.orderSearch[query].error = errorText.substring(0, 100);
-      }
+    .container {
+      background: white;
+      padding: 40px;
+      border-radius: 20px;
+      box-shadow: 0 20px 40px rgba(0,0,0,0.15);
+      max-width: 900px;
+      width: 100%;
+      text-align: center;
+      animation: slideUp 0.6s ease-out;
     }
-  } catch (error) {
-    debugInfo.tests.orderSearch = { error: error.message };
-  }
-
-  // Test 4: Check permissions
-  try {
-    console.log('Test 4: API permissions...');
-    const permUrl = `https://${shopDomain}.myshopify.com/admin/api/${apiVersion}/orders.json?limit=1&fields=id,name`;
-    const permResponse = await fetch(permUrl, {
-      headers: {
-        'X-Shopify-Access-Token': accessToken,
-        'Content-Type': 'application/json'
-      }
-    });
-    
-    debugInfo.tests.permissions = {
-      status: permResponse.status,
-      ok: permResponse.ok,
-      statusText: permResponse.statusText
-    };
-    
-    if (!permResponse.ok) {
-      const errorText = await permResponse.text();
-      debugInfo.tests.permissions.error = errorText;
+    @keyframes slideUp {
+      from { opacity: 0; transform: translateY(30px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .logo {
+      width: 100px;
+      height: auto;
+      margin: 0 auto 25px;
+      box-shadow: none;
+      border-radius: 0;
+      overflow: visible;
+    }
+    .logo img {
+      width: 100%;
+      height: auto;
+      object-fit: contain;
+      display: block;
+    }
+    h1 {
+      color: #333; margin-bottom: 10px;
+      font-size: 32px; font-weight: 700;
+    }
+    .subtitle {
+      color: #666; margin-bottom: 35px; font-size: 16px;
+    }
+    .step {
+      display: none; animation: fadeIn 0.5s ease-in;
+    }
+    .step.active { display: block; }
+    @keyframes fadeIn {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+    .form-group {
+      margin-bottom: 25px; text-align: left;
+    }
+    label {
+      display: block; margin-bottom: 10px;
+      color: #333; font-weight: 600; font-size: 16px;
+    }
+    input {
+      width: 100%; padding: 16px;
+      border: 2px solid #e0e0e0;
+      border-radius: 12px;
+      font-size: 16px;
+      transition: all 0.3s ease;
+      background: #fafafa;
+    }
+    input:focus {
+      outline: none;
+      border-color: #4CAF50;
+      box-shadow: 0 0 0 3px rgba(76, 175, 80, 0.1);
+      background: white;
+    }
+    input.error {
+      border-color: #f44336;
+      background: #fff5f5;
+    }
+    input.valid {
+      border-color: #4CAF50;
+      background: #f0fff4;
+    }
+    .btn {
+      background: linear-gradient(45deg, #4CAF50, #66BB6A);
+      color: white; border: none;
+      padding: 16px 32px; border-radius: 12px;
+      font-size: 16px; font-weight: 600;
+      cursor: pointer; transition: all 0.3s ease;
+      width: 100%; margin-bottom: 15px;
+    }
+    .btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 12px 25px rgba(76, 175, 80, 0.4);
+    }
+    .btn:disabled {
+      background: #ccc; cursor: not-allowed;
+      transform: none; box-shadow: none;
+    }
+    .btn.secondary {
+      background: #f5f5f5; color: #666;
+      border: 2px solid #e0e0e0;
+    }
+    .btn.secondary:hover {
+      background: #eeeeee;
+      box-shadow: 0 8px 20px rgba(0,0,0,0.1);
+    }
+    .btn.delivery {
+      background: linear-gradient(45deg, #1565C0, #1976D2);
+      font-size: 18px; 
+      padding: 18px 36px;
+    }
+    .btn.delivery:hover {
+      box-shadow: 0 12px 25px rgba(21, 101, 192, 0.4);
     }
     
-  } catch (error) {
-    debugInfo.tests.permissions = { error: error.message };
-  }
+    .btn.friend-request {
+      background: linear-gradient(45deg, #4CAF50, #66BB6A);
+      font-size: 16px;
+      padding: 16px 32px;
+      margin-bottom: 20px;
+    }
+    .btn.friend-request:hover {
+      box-shadow: 0 12px 25px rgba(76, 175, 80, 0.4);
+    }
+    
+    .profile-avatar {
+      width: 120px; height: 120px;
+      border-radius: 50%;
+      margin: 0 auto 20px;
+      border: 4px solid #4CAF50;
+      box-shadow: 0 8px 20px rgba(0,0,0,0.1);
+    }
+    .profile-name {
+      font-size: 24px; font-weight: 700;
+      color: #333; margin-bottom: 10px;
+    }
+    .profile-question {
+      font-size: 18px; color: #555;
+      margin-bottom: 25px;
+    }
+    
+    .profile-buttons {
+      display: flex;
+      gap: 15px;
+      width: 100%;
+    }
+    
+    .profile-buttons .btn {
+      margin-bottom: 0;
+      flex: 1;
+    }
+    
+    .loading {
+      display: inline-block; width: 20px; height: 20px;
+      border: 3px solid #f3f3f3;
+      border-top: 3px solid #4CAF50;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+      margin-right: 10px;
+    }
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+    .error-message {
+      background: #ffebee;
+      color: #c62828;
+      padding: 15px;
+      border-radius: 10px;
+      margin: 20px 0;
+      border-left: 4px solid #f44336;
+      text-align: left;
+    }
+    .success-message {
+      background: #e8f5e9;
+      color: #2e7d32;
+      padding: 15px;
+      border-radius: 10px;
+      margin: 20px 0;
+      border-left: 4px solid #4caf50;
+      text-align: left;
+    }
+    .validation-message {
+      font-size: 14px;
+      margin-top: 8px;
+      padding: 8px 12px;
+      border-radius: 6px;
+    }
+    .validation-message.error {
+      background: #ffebee;
+      color: #c62828;
+      border: 1px solid #ffcdd2;
+    }
+    .validation-message.success {
+      background: #e8f5e9;
+      color: #2e7d32;
+      border: 1px solid #c8e6c9;
+    }
+    .note {
+      background: #cce0ff;
+      color: #0b3d91;
+      padding: 15px;
+      border-radius: 10px;
+      margin-top: 20px;
+      font-size: 14px;
+      border-left: 4px solid #1952d4;
+    }
+    .step-indicator {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      margin-bottom: 30px;
+      gap: 10px;
+    }
+    .step-dot {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      background: #ddd;
+      transition: background 0.3s ease;
+    }
+    .step-dot.active {
+      background: #4CAF50;
+    }
+    .step-dot.completed {
+      background: #66BB6A;
+    }
+    .summary-card {
+      background: #f8f9fa;
+      padding: 25px;
+      border-radius: 15px;
+      margin: 25px 0;
+      border: 2px solid #e9ecef;
+      text-align: left;
+    }
+    .summary-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 12px 0;
+      border-bottom: 1px solid #e9ecef;
+    }
+    .summary-item:last-child {
+      border-bottom: none;
+    }
+    .summary-label {
+      font-weight: 600;
+      color: #555;
+    }
+    .summary-value {
+      color: #333;
+      font-weight: 500;
+    }
+    
+    .order-status {
+      background: #e8f5e9;
+      color: #2e7d32;
+      padding: 15px;
+      border-radius: 10px;
+      margin: 20px 0;
+      border-left: 4px solid #4caf50;
+    }
 
-  console.log('🔍 DEBUG RESULTS:', JSON.stringify(debugInfo, null, 2));
-  return debugInfo;
-}
-
-// ENHANCED ORDER SEARCH FUNCTION
-async function findShopifyOrder(orderNumber, email) {
-  const shopDomain = process.env.SHOPIFY_SHOP_DOMAIN;
-  const accessToken = process.env.SHOPIFY_ACCESS_TOKEN;
-  const apiVersion = process.env.SHOPIFY_API_VERSION || '2024-01';
-  
-  console.log('🔍 Shopify Configuration Check:', {
-    shopDomain: shopDomain ? `${shopDomain.substring(0, 5)}...` : 'MISSING',
-    hasAccessToken: !!accessToken,
-    tokenLength: accessToken?.length || 0,
-    apiVersion,
-    originalOrderNumber: orderNumber,
-    email
-  });
-
-  // Enhanced search queries with more variations
-  const searchQueries = [
-    orderNumber,
-    orderNumber.replace(/^#/, ''),
-    `#${orderNumber.replace(/^#/, '')}`,
-    orderNumber.replace(/^AG-/, ''),
-    `AG-${orderNumber.replace(/^(AG-|#)/, '')}`,
-    orderNumber.replace(/^AF/, ''),
-    `AF${orderNumber.replace(/^(AF|AG-|#)/, '')}`,
-    // Add order number without prefixes
-    orderNumber.replace(/^(AG-|AF|#)/, ''),
-    // Try with leading zeros
-    orderNumber.replace(/^(AG-|AF|#)/, '').padStart(4, '0'),
-    `AG-${orderNumber.replace(/^(AG-|AF|#)/, '').padStart(4, '0')}`
-  ];
-
-  const uniqueSearchQueries = [...new Set(searchQueries)];
-  console.log('📋 Search queries to try:', uniqueSearchQueries);
-
-  let foundOrderWithWrongEmail = null;
-  let lastResponse = null;
-
-  // Method 1: Search by name (most common)
-  for (const query of uniqueSearchQueries) {
-    try {
-      console.log(`🔎 Searching by name: "${query}"`);
-      
-      const nameSearchUrl = `https://${shopDomain}.myshopify.com/admin/api/${apiVersion}/orders.json?name=${encodeURIComponent(query)}&limit=10&status=any`;
-      
-      console.log('📡 Request URL:', nameSearchUrl.replace(accessToken, 'TOKEN_HIDDEN'));
-      
-      const response = await fetch(nameSearchUrl, {
-        headers: {
-          'X-Shopify-Access-Token': accessToken,
-          'Content-Type': 'application/json'
-        }
-      });
-
-      lastResponse = {
-        status: response.status,
-        statusText: response.statusText,
-        query: query
-      };
-
-      console.log(`📊 Response for "${query}":`, {
-        status: response.status,
-        statusText: response.statusText,
-        ok: response.ok
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error(`❌ API Error for query "${query}":`, {
-          status: response.status,
-          statusText: response.statusText,
-          error: errorText.substring(0, 200)
-        });
-        continue;
+    /* NEW: Firestore Status Indicators */
+    .firestore-status {
+      background: #e3f2fd;
+      color: #1565c0;
+      padding: 12px;
+      border-radius: 8px;
+      margin: 15px 0;
+      font-size: 14px;
+      border-left: 4px solid #2196f3;
+    }
+    
+    .registration-id {
+      background: #f3e5f5;
+      color: #7b1fa2;
+      padding: 10px;
+      border-radius: 8px;
+      margin: 10px 0;
+      font-family: 'Courier New', monospace;
+      font-size: 12px;
+      word-break: break-all;
+    }
+    
+    /* Mobile Responsive */
+    @media (max-width: 768px) {
+      .container {
+        max-width: 500px;
+        padding: 30px 20px;
       }
-
-      const data = await response.json();
-      console.log(`📦 Orders found for "${query}":`, data.orders?.length || 0);
       
-      if (data.orders && data.orders.length > 0) {
-        data.orders.forEach((order, index) => {
-          console.log(`  Order ${index + 1}: ${order.name} | ${order.email} | Status: ${order.financial_status}`);
-        });
+      .profile-buttons {
+        flex-direction: column;
+      }
+      
+      .profile-buttons .btn {
+        width: 100%;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="logo">
+      <img src="https://cdn.shopify.com/s/files/1/0943/2311/4269/files/sittingon-Photoroom-Photoroom.png?v=1754625898" alt="Affordable Garden Raccoon Logo" />
+    </div>
+    <h1>Affordable.Garden Delivery Page</h1>
+    <p class="subtitle">Order Verification & Delivery (Powered by Firestore)</p>
 
-        const order = data.orders[0];
+    <div class="step-indicator">
+      <div class="step-dot active" id="dot1"></div>
+      <div class="step-dot" id="dot2"></div>
+      <div class="step-dot" id="dot3"></div>
+    </div>
+
+    <!-- Step 1: Order Verification -->
+    <div class="step active" id="step1">
+      <div style="max-width: 500px; margin: 0 auto;">
+        <div class="form-group">
+          <label for="orderNumber">Order Number:</label>
+          <input
+            type="text"
+            id="orderNumber"
+            placeholder="Example: AG-1002"
+            required
+            autocomplete="off"
+          />
+          <div id="orderValidation" class="validation-message" style="display: none;"></div>
+        </div>
+
+        <div class="form-group">
+          <label for="emailAddress">Email Address:</label>
+          <input
+            type="email"
+            id="emailAddress"
+            placeholder="your.email@example.com"
+            required
+            autocomplete="email"
+          />
+          <div id="emailValidation" class="validation-message" style="display: none;"></div>
+        </div>
+
+        <button class="btn" onclick="verifyOrder()" id="verifyOrderBtn">
+          Verify Order
+        </button>
+
+        <!-- NEW: Firestore Test Button -->
+        <button class="btn secondary" onclick="testFirestore()" id="testFirestoreBtn" style="margin-top: 10px;">
+          🔥 Test Firestore Connection
+        </button>
+      </div>
+      
+      <div class="note">
+        <strong>Required:</strong> Enter your order number and email address from your Shopify purchase. These must match our records to proceed.
+      </div>
+    </div>
+
+    <!-- Step 2: Roblox Username Verification -->
+    <div class="step" id="step2">
+      <div style="max-width: 500px; margin: 0 auto;">
+        <div class="order-status" id="orderStatus"></div>
         
-        if (order.email && order.email.toLowerCase() === email.toLowerCase()) {
-          console.log(`✅ PERFECT MATCH: ${order.name} with email ${order.email}`);
-          return { order, emailMatch: true };
+        <!-- Profile section moved above username input -->
+        <div id="profileSection" style="display: none; margin-bottom: 30px;">
+          <div class="profile-card">
+            <div id="profileContent"></div>
+          </div>
+        </div>
+        
+        <div class="form-group">
+          <label for="robloxUsername">Enter your Roblox Username:</label>
+          <input
+            type="text"
+            id="robloxUsername"
+            placeholder="YourRobloxUsername"
+            required
+            autocomplete="off"
+          />
+        </div>
+
+        <button class="btn" onclick="verifyUsername()" id="verifyBtn">
+          Verify Username
+        </button>
+        <button class="btn secondary" onclick="goBack(1)">Go Back</button>
+      </div>
+      
+      <div class="note">
+        Make sure your username is spelled exactly right (case-sensitive)
+      </div>
+    </div>
+
+    <!-- Step 3: Join Delivery Server -->
+    <div class="step" id="step3">
+      <h2 style="color: #333; margin-bottom: 25px;">Ready for Delivery!</h2>
+      
+      <div class="summary-card">
+        <div class="summary-item">
+          <span class="summary-label">Order Number:</span>
+          <span class="summary-value" id="summaryOrder"></span>
+        </div>
+        <div class="summary-item">
+          <span class="summary-label">Email Address:</span>
+          <span class="summary-value" id="summaryEmail"></span>
+        </div>
+        <div class="summary-item">
+          <span class="summary-label">Roblox Username:</span>
+          <span class="summary-value" id="summaryUsername"></span>
+        </div>
+        <div class="summary-item">
+          <span class="summary-label">Status:</span>
+          <span class="summary-value" style="color: #4CAF50; font-weight: bold;">✅ Verified</span>
+        </div>
+      </div>
+
+      <!-- NEW: Firestore Registration Status -->
+      <div class="firestore-status" id="firestoreStatus" style="display: none;">
+        🔥 Firestore Status: <span id="firestoreStatusText">Processing...</span>
+      </div>
+
+      <!-- NEW: Registration ID Display -->
+      <div class="registration-id" id="registrationIdDisplay" style="display: none;">
+        <strong>Registration ID:</strong> <span id="registrationIdText"></span>
+      </div>
+
+      <div style="display: flex; justify-content: center; margin: 30px 0;">
+        <img id="summaryAvatar" class="profile-avatar" src="" alt="Profile Picture" />
+      </div>
+      
+      <div style="color: #666; margin-bottom: 30px;">
+        Click the button below to friend our delivery staff, then join our private Roblox server for your delivery
+      </div>
+
+      <button class="btn friend-request" onclick="friendDeliveryStaff()">
+        👥 Friend meow82412 (Delivery Person)
+      </button>
+
+      <button class="btn delivery" onclick="joinDeliveryServer()" id="joinServerBtn">
+        🚀 Join Delivery Server & Register
+      </button>
+      
+      <button class="btn secondary" onclick="goBack(2)" style="margin-top: 10px;">Go Back</button>
+
+      <div class="note" style="margin-top: 20px; background: #cce0ff; color: #0b3d91; border-left: 4px solid #1952d4;">
+        <strong>Important:</strong> Please friend our delivery staff first, then join the server and wait for a staff member to deliver your items. Your registration will be saved to Firestore automatically.
+      </div>
+    </div>
+
+    <!-- Error/Success Messages -->
+    <div id="errorMessage" class="error-message" style="display: none"></div>
+    <div id="successMessage" class="success-message" style="display: none"></div>
+  </div>
+
+  <script>
+    let currentUserData = null;
+    let currentOrderData = null;
+    let currentStep = 1;
+    let currentRegistrationId = null;
+
+    // NEW: Firestore test function
+    async function testFirestore() {
+      const testBtn = document.getElementById('testFirestoreBtn');
+      testBtn.innerHTML = '<span class="loading"></span>Testing Firestore...';
+      testBtn.disabled = true;
+
+      try {
+        const response = await fetch('/api/verify', {
+          method: 'POST',
+          headers: { 
+            'Content-Type': 'application/json',
+            'Accept': 'application/json'
+          },
+          body: JSON.stringify({ action: 'test_firestore' })
+        });
+
+        const result = await response.json();
+        
+        if (result.success) {
+          showSuccess(`🔥 Firestore connected successfully! Test doc ID: ${result.testDocId}`);
         } else {
-          console.log(`⚠️ Order found but email mismatch: ${order.email} vs ${email}`);
-          foundOrderWithWrongEmail = order;
+          showError(`Firestore test failed: ${result.error}`);
         }
-      }
-      
-    } catch (error) {
-      console.error(`💥 Error searching for order "${query}":`, error.message);
-      continue;
-    }
-  }
-
-  // Method 2: Search by order_number field
-  console.log('🔍 Trying order_number search...');
-  const cleanOrderNum = orderNumber.replace(/^(AG-|AF|#)/, '');
-  
-  try {
-    const orderNumUrl = `https://${shopDomain}.myshopify.com/admin/api/${apiVersion}/orders.json?limit=50&status=any&fields=id,name,email,order_number,financial_status`;
-    
-    const response = await fetch(orderNumUrl, {
-      headers: {
-        'X-Shopify-Access-Token': accessToken,
-        'Content-Type': 'application/json'
-      }
-    });
-
-    if (response.ok) {
-      const data = await response.json();
-      console.log(`📦 Found ${data.orders?.length || 0} recent orders to check`);
-      
-      if (data.orders && data.orders.length > 0) {
-        const matchingOrder = data.orders.find(order => {
-          const orderMatches = uniqueSearchQueries.some(query => {
-            return order.name === query || 
-                   order.order_number?.toString() === cleanOrderNum ||
-                   order.order_number?.toString() === query;
-          });
-          return orderMatches && order.email?.toLowerCase() === email.toLowerCase();
-        });
         
-        if (matchingOrder) {
-          console.log(`✅ FOUND via order_number search: ${matchingOrder.name}`);
-          return { order: matchingOrder, emailMatch: true };
-        }
+      } catch (error) {
+        showError(`Firestore test error: ${error.message}`);
+      } finally {
+        testBtn.innerHTML = '🔥 Test Firestore Connection';
+        testBtn.disabled = false;
       }
     }
-  } catch (error) {
-    console.error('❌ Order number search failed:', error.message);
-  }
 
-  // Method 3: Search by email first, then filter
-  console.log('📧 Trying email-first search...');
-  try {
-    const emailSearchUrl = `https://${shopDomain}.myshopify.com/admin/api/${apiVersion}/orders.json?email=${encodeURIComponent(email)}&limit=50&status=any`;
-    
-    const response = await fetch(emailSearchUrl, {
-      headers: {
-        'X-Shopify-Access-Token': accessToken,
-        'Content-Type': 'application/json'
-      }
-    });
-
-    if (response.ok) {
-      const data = await response.json();
-      console.log(`📬 Found ${data.orders?.length || 0} orders for email ${email}`);
-      
-      if (data.orders && data.orders.length > 0) {
-        data.orders.forEach((order, index) => {
-          console.log(`  Email Order ${index + 1}: ${order.name} | Created: ${order.created_at}`);
-        });
-
-        const matchingOrder = data.orders.find(order => {
-          return uniqueSearchQueries.some(query => {
-            return order.name === query || 
-                   order.order_number?.toString() === cleanOrderNum ||
-                   (order.name && order.name.includes(cleanOrderNum));
-          });
-        });
+    function updateStepIndicator(step) {
+      for (let i = 1; i <= 3; i++) {
+        const dot = document.getElementById(`dot${i}`);
+        dot.classList.remove('active', 'completed');
         
-        if (matchingOrder) {
-          console.log(`✅ FOUND via email search: ${matchingOrder.name}`);
-          return { order: matchingOrder, emailMatch: true };
+        if (i < step) {
+          dot.classList.add('completed');
+        } else if (i === step) {
+          dot.classList.add('active');
         }
       }
     }
-  } catch (error) {
-    console.error('❌ Email search failed:', error.message);
-  }
 
-  // Method 4: Try GraphQL API as fallback
-  console.log('🔄 Trying GraphQL API as last resort...');
-  try {
-    const graphqlQuery = `
-      query getOrders($query: String!) {
-        orders(first: 10, query: $query) {
-          nodes {
-            id
-            name
-            email
-            legacyResourceId
-            financialStatus
-            customer {
-              firstName
-              lastName
-            }
-            totalPriceSet {
-              shopMoney {
-                amount
-                currencyCode
-              }
-            }
-            createdAt
-          }
-        }
-      }
-    `;
-
-    const graphqlUrl = `https://${shopDomain}.myshopify.com/admin/api/${apiVersion}/graphql.json`;
-    
-    for (const query of uniqueSearchQueries.slice(0, 3)) { // Try only first 3 to avoid rate limits
-      const searchQuery = `name:${query} OR email:${email}`;
+    function showStep(stepNumber) {
+      currentStep = stepNumber;
+      document.querySelectorAll('.step').forEach((step) =>
+        step.classList.remove('active')
+      );
+      document.getElementById('step' + stepNumber).classList.add('active');
+      updateStepIndicator(stepNumber);
       
-      const response = await fetch(graphqlUrl, {
-        method: 'POST',
-        headers: {
-          'X-Shopify-Access-Token': accessToken,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          query: graphqlQuery,
-          variables: { query: searchQuery }
-        })
-      });
+      // Clear messages when changing steps
+      document.getElementById('errorMessage').style.display = 'none';
+      document.getElementById('successMessage').style.display = 'none';
+    }
 
-      if (response.ok) {
-        const data = await response.json();
-        console.log('📈 GraphQL response:', JSON.stringify(data, null, 2));
+    function displayUserProfile(userData) {
+      const profileSection = document.getElementById('profileSection');
+      const profileContent = document.getElementById('profileContent');
+      
+      profileSection.style.display = 'block';
+      
+      const avatarImg = document.createElement('img');
+      avatarImg.className = 'profile-avatar';
+      avatarImg.alt = `${userData.username}'s Avatar`;
+      
+      // Set up avatar with fallback handling
+      avatarImg.onerror = function() {
+        console.log('Avatar failed to load, trying fallback...');
         
-        if (data.data?.orders?.nodes?.length > 0) {
-          const matchingOrder = data.data.orders.nodes.find(order => 
-            order.name === query && order.email?.toLowerCase() === email.toLowerCase()
-          );
-          
-          if (matchingOrder) {
-            console.log(`✅ FOUND via GraphQL: ${matchingOrder.name}`);
-            // Convert GraphQL format to REST format
-            const restOrder = {
-              id: matchingOrder.legacyResourceId,
-              name: matchingOrder.name,
-              email: matchingOrder.email,
-              financial_status: matchingOrder.financialStatus?.toLowerCase(),
-              total_price: matchingOrder.totalPriceSet?.shopMoney?.amount,
-              currency: matchingOrder.totalPriceSet?.shopMoney?.currencyCode,
-              created_at: matchingOrder.createdAt,
-              customer: {
-                first_name: matchingOrder.customer?.firstName,
-                last_name: matchingOrder.customer?.lastName
-              }
-            };
-            return { order: restOrder, emailMatch: true };
-          }
-        }
-      }
-    }
-  } catch (error) {
-    console.error('❌ GraphQL search failed:', error.message);
-  }
-
-  // Final diagnostic info
-  console.log('🔍 FINAL DIAGNOSIS:', {
-    lastResponseStatus: lastResponse?.status,
-    lastResponseQuery: lastResponse?.query,
-    foundOrderWithWrongEmail: !!foundOrderWithWrongEmail,
-    wrongEmailOrderName: foundOrderWithWrongEmail?.name,
-    wrongEmailOrderEmail: foundOrderWithWrongEmail?.email,
-    searchedQueries: uniqueSearchQueries.length,
-    shopDomain: `${shopDomain?.substring(0, 10)}...`,
-    accessTokenPresent: !!accessToken
-  });
-
-  if (foundOrderWithWrongEmail) {
-    return { order: foundOrderWithWrongEmail, emailMatch: false };
-  }
-
-  return null;
-}
-
-// ENHANCED ORDER VERIFICATION
-async function handleOrderVerification(req, res, orderNumber, email) {
-  console.log(`\n🔍 === ENHANCED ORDER VERIFICATION START ===`);
-  console.log(`Order: ${orderNumber} | Email: ${email}`);
-  console.log(`Timestamp: ${new Date().toISOString()}`);
-  
-  // Input validation
-  if (!orderNumber || !email) {
-    console.log('❌ Missing required parameters');
-    return res.status(400).json({ error: 'Order number and email are required' });
-  }
-
-  const cleanOrderNumber = orderNumber.trim();
-  const cleanEmail = email.toLowerCase().trim();
-
-  // Basic email format validation
-  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-  if (!emailRegex.test(cleanEmail)) {
-    console.log('❌ Invalid email format');
-    return res.status(400).json({ error: 'Invalid email format' });
-  }
-
-  try {
-    // Check environment variables more thoroughly
-    const envCheck = {
-      SHOPIFY_SHOP_DOMAIN: !!process.env.SHOPIFY_SHOP_DOMAIN,
-      SHOPIFY_ACCESS_TOKEN: !!process.env.SHOPIFY_ACCESS_TOKEN,
-      shopDomainValue: process.env.SHOPIFY_SHOP_DOMAIN?.substring(0, 10) + '...',
-      tokenLength: process.env.SHOPIFY_ACCESS_TOKEN?.length
-    };
-    
-    console.log('🔧 Environment check:', envCheck);
-
-    if (!process.env.SHOPIFY_SHOP_DOMAIN || !process.env.SHOPIFY_ACCESS_TOKEN) {
-      console.error('❌ Missing Shopify credentials');
-      return res.status(500).json({ 
-        error: 'Server configuration error',
-        details: 'Missing Shopify API credentials'
-      });
-    }
-
-    // Test API connectivity first
-    console.log('🧪 Testing Shopify API connectivity...');
-    const testUrl = `https://${process.env.SHOPIFY_SHOP_DOMAIN}.myshopify.com/admin/api/2024-01/shop.json`;
-    
-    const testResponse = await fetch(testUrl, {
-      headers: {
-        'X-Shopify-Access-Token': process.env.SHOPIFY_ACCESS_TOKEN,
-        'Content-Type': 'application/json'
-      }
-    });
-
-    console.log('🔌 API connectivity test:', {
-      status: testResponse.status,
-      statusText: testResponse.statusText,
-      ok: testResponse.ok
-    });
-
-    if (!testResponse.ok) {
-      const errorText = await testResponse.text();
-      console.error('❌ Shopify API connectivity failed:', {
-        status: testResponse.status,
-        error: errorText.substring(0, 300)
-      });
-      
-      if (testResponse.status === 401) {
-        return res.status(500).json({ 
-          error: 'Invalid Shopify API credentials',
-          details: 'Please check your access token'
-        });
-      } else if (testResponse.status === 404) {
-        return res.status(500).json({ 
-          error: 'Invalid shop domain',
-          details: 'Please check your shop domain configuration'
-        });
-      }
-    } else {
-      const shopData = await testResponse.json();
-      console.log('✅ Connected to shop:', shopData.shop?.name || 'Unknown Shop');
-    }
-
-    // Now search for the order
-    const searchResult = await findShopifyOrder(cleanOrderNumber, cleanEmail);
-    
-    console.log('🔍 Search result:', {
-      found: !!searchResult,
-      emailMatch: searchResult?.emailMatch,
-      orderName: searchResult?.order?.name
-    });
-    
-    if (!searchResult) {
-      console.log('❌ No matching order found after all search methods');
-      return res.status(404).json({ 
-        error: 'Order not found',
-        details: `No order found matching "${cleanOrderNumber}" for email "${cleanEmail}". Please check both values and try again.`,
-        searchedVariations: [
-          cleanOrderNumber,
-          `#${cleanOrderNumber}`,
-          `AG-${cleanOrderNumber.replace(/^(AG-|#)/, '')}`,
-          cleanOrderNumber.replace(/^(AG-|#)/, '')
-        ]
-      });
-    }
-
-    // Check if order was found but email doesn't match
-    if (!searchResult.emailMatch) {
-      console.log('❌ Order found but email mismatch');
-      return res.status(400).json({ 
-        error: 'Email does not match the order number',
-        details: `Order "${searchResult.order.name}" exists but is associated with email "${searchResult.order.email}", not "${cleanEmail}". Please check your email and try again.`
-      });
-    }
-
-    const order = searchResult.order;
-
-    // Validate order for delivery
-    const validationResult = validateOrderForDelivery(order);
-    if (!validationResult.valid) {
-      console.log('❌ Order validation failed:', validationResult.reason);
-      return res.status(400).json({ 
-        error: validationResult.reason,
-        details: validationResult.details 
-      });
-    }
-
-    console.log('✅ Order verification successful:', order.name);
-    console.log(`=== VERIFICATION COMPLETE ===\n`);
-
-    // Return successful verification
-    return res.status(200).json({
-      orderNumber: order.name,
-      email: cleanEmail,
-      orderId: order.id.toString(),
-      customerName: `${order.customer?.first_name || ''} ${order.customer?.last_name || ''}`.trim(),
-      items: formatOrderItems(order.line_items),
-      total: order.total_price,
-      currency: order.currency,
-      orderDate: order.created_at,
-      fulfilled: order.fulfillment_status === 'fulfilled',
-      verified: true,
-      source: 'shopify_rest_api',
-      searchMethod: 'enhanced_search'
-    });
-
-  } catch (error) {
-    console.error('💥 Order verification error:', {
-      message: error.message,
-      stack: error.stack?.substring(0, 500)
-    });
-    
-    return res.status(500).json({ 
-      error: 'Failed to verify order',
-      message: 'Please try again in a moment',
-      details: DEBUG_MODE ? error.message : 'Internal server error'
-    });
-  }
-}
-
-// FIRESTORE SAVE FUNCTION (unchanged)
-async function saveToFirestore(deliveryData) {
-  const startTime = Date.now();
-  
-  try {
-    console.log('🔥 Saving delivery data to Firestore...');
-    
-    const db = initFirebase();
-    const registrationId = generateDeliveryId();
-    
-    const docData = {
-      registrationId,
-      timestamp: serverTimestamp(),
-      createdAt: new Date().toISOString(),
-      orderNumber: deliveryData.order?.orderNumber || 'N/A',
-      email: deliveryData.order?.email || 'N/A',
-      orderItems: deliveryData.order?.items || 'Digital Items',
-      orderTotal: deliveryData.order?.total || 'N/A',
-      orderCurrency: deliveryData.order?.currency || 'USD',
-      orderId: deliveryData.order?.orderId || null,
-      customerName: deliveryData.order?.customerName || null,
-      robloxUsername: deliveryData.roblox?.username || 'N/A',
-      robloxUserId: deliveryData.roblox?.userId?.toString() || 'N/A',
-      robloxAvatarUrl: deliveryData.roblox?.avatar || null,
-      status: 'pending_delivery',
-      deliveryStaffAssigned: null,
-      serverJoinTime: deliveryData.serverJoinTime || new Date().toISOString(),
-      completedAt: null,
-      processedBy: 'delivery_system_v2',
-      source: 'affordable_garden_delivery',
-      apiVersion: '2.1',
-      userAgent: deliveryData.userAgent || null,
-      stepCompletionTimes: deliveryData.stepCompletionTimes || null,
-      totalProcessingTime: Date.now() - startTime
-    };
-
-    const docRef = await addDoc(collection(db, 'delivery_requests'), docData);
-    const elapsed = Date.now() - startTime;
-    
-    console.log(`✅ Successfully saved to Firestore in ${elapsed}ms:`, {
-      registrationId: registrationId,
-      firestoreId: docRef.id,
-      collection: 'delivery_requests'
-    });
-    
-    return {
-      success: true,
-      registrationId,
-      firestoreId: docRef.id,
-      collection: 'delivery_requests',
-      timing: elapsed,
-      docPath: `delivery_requests/${docRef.id}`
-    };
-
-  } catch (error) {
-    const elapsed = Date.now() - startTime;
-    console.error(`❌ Firestore save failed after ${elapsed}ms:`, error);
-    throw error;
-  }
-}
-
-async function handleDeliveryRegistration(req, res, deliveryData) {
-  console.log('📦 Processing Delivery Registration with Firestore...');
-  
-  const startTime = Date.now();
-  const REQUEST_TIMEOUT = 8000;
-  
-  try {
-    if (!deliveryData.order || !deliveryData.roblox) {
-      return res.status(400).json({ 
-        error: 'Missing required delivery data',
-        required: ['order', 'roblox'],
-        received: {
-          hasOrder: !!deliveryData.order,
-          hasRoblox: !!deliveryData.roblox
-        }
-      });
-    }
-
-    if (!deliveryData.order.orderNumber || !deliveryData.order.email) {
-      return res.status(400).json({
-        error: 'Invalid order data - missing orderNumber or email'
-      });
-    }
-
-    if (!deliveryData.roblox.username || !deliveryData.roblox.userId) {
-      return res.status(400).json({
-        error: 'Invalid Roblox data - missing username or userId'
-      });
-    }
-
-    deliveryData.userAgent = req.headers['user-agent'];
-    
-    const firestorePromise = saveToFirestore(deliveryData);
-    const timeoutPromise = new Promise((_, reject) => {
-      setTimeout(() => {
-        reject(new Error('Firestore operation timed out'));
-      }, REQUEST_TIMEOUT);
-    });
-    
-    let firestoreResult;
-    try {
-      firestoreResult = await Promise.race([firestorePromise, timeoutPromise]);
-    } catch (timeoutError) {
-      const elapsed = Date.now() - startTime;
-      const fallbackId = generateDeliveryId();
-      
-      return res.status(202).json({
-        success: false,
-        message: 'Delivery request received (saving in background)',
-        registrationId: fallbackId,
-        warning: 'Save operation timed out but request was processed',
-        canContinue: true,
-        timing: elapsed,
-        status: 'timeout'
-      });
-    }
-    
-    const elapsed = Date.now() - startTime;
-    
-    const registrationRecord = {
-      registrationId: firestoreResult.registrationId,
-      timestamp: new Date().toISOString(),
-      order: {
-        orderNumber: deliveryData.order.orderNumber,
-        email: deliveryData.order.email,
-        items: deliveryData.order.items,
-        total: deliveryData.order.total
-      },
-      roblox: {
-        username: deliveryData.roblox.username,
-        userId: deliveryData.roblox.userId
-      },
-      status: 'pending_delivery',
-      savedToFirestore: true,
-      firestoreId: firestoreResult.firestoreId,
-      docPath: firestoreResult.docPath,
-      timing: elapsed
-    };
-    
-    return res.status(200).json({
-      success: true,
-      message: 'Delivery request registered successfully in Firestore',
-      registrationId: registrationRecord.registrationId,
-      data: registrationRecord
-    });
-    
-  } catch (error) {
-    const elapsed = Date.now() - startTime;
-    console.error('❌ Delivery registration failed:', error);
-    
-    return res.status(500).json({ 
-      error: 'Failed to save delivery request to Firestore',
-      message: error.message,
-      timing: elapsed,
-      canContinue: true // Let user continue to server anyway
-    });
-  }
-}
-
-// ROBLOX USERNAME VERIFICATION (unchanged)
-async function handleUsernameVerification(req, res, username) {
-  console.log(`🎮 Roblox Username Verification: ${username}`);
-  
-  if (!username || typeof username !== 'string' || username.trim() === '') {
-    return res.status(400).json({ error: 'Username is required' });
-  }
-
-  const cleanUsername = username.trim();
-  
-  if (cleanUsername.length < 3 || cleanUsername.length > 20) {
-    return res.status(400).json({ error: 'Username must be between 3-20 characters' });
-  }
-
-  if (!/^[a-zA-Z0-9_]+$/.test(cleanUsername)) {
-    return res.status(400).json({ error: 'Username can only contain letters, numbers, and underscores' });
-  }
-
-  console.log(`Searching for Roblox user: ${cleanUsername}`);
-
-  // Method 1: Username-to-ID conversion
-  try {
-    console.log('Attempting username-to-ID conversion...');
-    const usernameToIdResponse = await fetch('https://users.roblox.com/v1/usernames/users', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        usernames: [cleanUsername],
-        excludeBannedUsers: true
-      })
-    });
-    
-    if (usernameToIdResponse.ok) {
-      const usernameData = await usernameToIdResponse.json();
-      
-      if (usernameData.data && usernameData.data.length > 0) {
-        const userData = usernameData.data[0];
+        const fallbackUrls = [
+          `https://www.roblox.com/bust-thumbnail/image?userId=${userData.userId}&width=150&height=150&format=png`,
+          `https://www.roblox.com/headshot-thumbnail/image?userId=${userData.userId}&width=150&height=150&format=png&t=${Date.now()}`,
+          `https://www.roblox.com/headshot-thumbnail/image?userId=${userData.userId}&width=100&height=100&format=png`,
+        ];
         
-        if (userData.name && userData.name.toLowerCase() === cleanUsername.toLowerCase()) {
-          console.log('✅ Found exact match via username-to-ID API:', userData.name);
-          
-          let avatarUrl = `https://www.roblox.com/headshot-thumbnail/image?userId=${userData.id}&width=150&height=150&format=png&v=${Date.now()}`;
-          
-          try {
-            const avatarResponse = await fetch(`https://thumbnails.roblox.com/v1/users/avatar-headshot?userIds=${userData.id}&size=150x150&format=Png&isCircular=false`);
-            if (avatarResponse.ok) {
-              const avatarData = await avatarResponse.json();
-              if (avatarData.data && avatarData.data[0] && avatarData.data[0].imageUrl) {
-                avatarUrl = avatarData.data[0].imageUrl;
-              }
-            }
-          } catch (avatarError) {
-            console.log('Avatar API failed, using fallback URL');
-          }
-
-          return res.status(200).json({
-            success: true,
-            userId: userData.id.toString(),
-            username: userData.name,
-            avatarUrl: avatarUrl,
-            verified: true,
-            source: 'roblox_api'
-          });
-        }
-      }
-    }
-  } catch (apiError) {
-    console.error('❌ Username-to-ID API error:', apiError.message);
-  }
-
-  // Method 2: Fallback to search API
-  try {
-    console.log('Falling back to search API...');
-    const userSearchResponse = await fetch(`https://users.roblox.com/v1/users/search?keyword=${encodeURIComponent(cleanUsername)}&limit=10`);
-    
-    if (userSearchResponse.ok) {
-      const userSearchData = await userSearchResponse.json();
-      
-      if (userSearchData.data && userSearchData.data.length > 0) {
-        const exactMatch = userSearchData.data.find(user => 
-          user.name && user.name.toLowerCase() === cleanUsername.toLowerCase()
-        );
+        const currentSrc = this.src;
+        const nextIndex = fallbackUrls.findIndex(url => url.split('&t=')[0] === currentSrc.split('&t=')[0]) + 1;
         
-        if (exactMatch) {
-          console.log('✅ Found exact match via search API:', exactMatch.name);
-          
-          let avatarUrl = `https://www.roblox.com/headshot-thumbnail/image?userId=${exactMatch.id}&width=150&height=150&format=png&v=${Date.now()}`;
-          
-          try {
-            const avatarResponse = await fetch(`https://thumbnails.roblox.com/v1/users/avatar-headshot?userIds=${exactMatch.id}&size=150x150&format=Png&isCircular=false`);
-            if (avatarResponse.ok) {
-              const avatarData = await avatarResponse.json();
-              if (avatarData.data && avatarData.data[0] && avatarData.data[0].imageUrl) {
-                avatarUrl = avatarData.data[0].imageUrl;
-              }
-            }
-          } catch (avatarError) {
-            console.log('Avatar API failed, using fallback URL');
-          }
-
-          return res.status(200).json({
-            success: true,
-            userId: exactMatch.id.toString(),
-            username: exactMatch.name,
-            avatarUrl: avatarUrl,
-            verified: true,
-            source: 'roblox_api'
-          });
+        if (nextIndex < fallbackUrls.length) {
+          this.src = fallbackUrls[nextIndex];
+        } else {
+          // Create placeholder avatar
+          this.src = 'data:image/svg+xml,' + encodeURIComponent(`
+            <svg xmlns="http://www.w3.org/2000/svg" width="150" height="150" viewBox="0 0 150 150">
+              <rect width="150" height="150" fill="#4CAF50"/>
+              <circle cx="75" cy="60" r="25" fill="white"/>
+              <rect x="55" y="90" width="40" height="40" rx="20" fill="white"/>
+              <text x="75" y="130" font-family="Arial" font-size="10" fill="white" text-anchor="middle">${userData.username}</text>
+            </svg>
+          `);
         }
-      }
-    }
-  } catch (apiError) {
-    console.error('❌ Search API error:', apiError.message);
-  }
-
-  console.log('❌ Username verification failed with both methods');
-  return res.status(404).json({ 
-    error: `User "${cleanUsername}" not found`,
-    details: 'Please check the spelling and try again (case-sensitive)'
-  });
-}
-
-// VALIDATION FUNCTIONS (unchanged)
-function validateOrderForDelivery(order) {
-  if (order.financial_status !== 'paid' && order.financial_status !== 'partially_paid') {
-    return {
-      valid: false,
-      reason: 'Order payment not confirmed',
-      details: 'Please ensure your payment has been processed before requesting delivery'
-    };
-  }
-
-  if (order.cancelled_at) {
-    return {
-      valid: false,
-      reason: 'Order has been cancelled',
-      details: 'Cancelled orders are not eligible for delivery'
-    };
-  }
-
-  if (order.fulfillment_status === 'fulfilled') {
-    return {
-      valid: false,
-      reason: 'Order has already been fulfilled',
-      details: 'This order has already been delivered and cannot be claimed again'
-    };
-  }
-
-  if (order.financial_status === 'refunded' || order.financial_status === 'partially_refunded') {
-    return {
-      valid: false,
-      reason: 'Order has been refunded',
-      details: 'Refunded orders are not eligible for delivery'
-    };
-  }
-
-  if (order.refunds && order.refunds.length > 0) {
-    const totalRefunded = order.refunds.reduce((sum, refund) => {
-      return sum + parseFloat(refund.amount || 0);
-    }, 0);
-    
-    const totalPrice = parseFloat(order.total_price || 0);
-    
-    if (totalRefunded >= totalPrice) {
-      return {
-        valid: false,
-        reason: 'Order has been fully refunded',
-        details: 'Fully refunded orders are not eligible for delivery'
       };
+      
+      const avatarUrl = userData.avatar.includes('?') 
+        ? `${userData.avatar}&t=${Date.now()}`
+        : `${userData.avatar}?t=${Date.now()}`;
+        
+      avatarImg.src = avatarUrl;
+      
+      const profileName = document.createElement('div');
+      profileName.className = 'profile-name';
+      profileName.textContent = userData.username;
+      
+      const profileQuestion = document.createElement('div');
+      profileQuestion.className = 'profile-question';
+      profileQuestion.textContent = 'Is this your Roblox account?';
+      
+      const buttonsDiv = document.createElement('div');
+      buttonsDiv.className = 'profile-buttons';
+      
+      const confirmBtn = document.createElement('button');
+      confirmBtn.className = 'btn';
+      confirmBtn.textContent = 'Yes, that\'s me!';
+      confirmBtn.onclick = () => {
+        // Update summary for final step
+        document.getElementById('summaryOrder').textContent = currentOrderData.orderNumber;
+        document.getElementById('summaryUsername').textContent = currentUserData.username;
+        document.getElementById('summaryEmail').textContent = currentOrderData.email;
+        document.getElementById('summaryAvatar').src = currentUserData.avatar;
+        confirmProfile();
+      };
+      
+      const retryBtn = document.createElement('button');
+      retryBtn.className = 'btn secondary';
+      retryBtn.textContent = 'Try again';
+      retryBtn.onclick = () => goBack(2);
+      
+      buttonsDiv.appendChild(confirmBtn);
+      buttonsDiv.appendChild(retryBtn);
+      
+      profileContent.innerHTML = '';
+      profileContent.appendChild(avatarImg);
+      profileContent.appendChild(profileName);
+      profileContent.appendChild(profileQuestion);
+      profileContent.appendChild(buttonsDiv);
     }
-  }
 
-  return { valid: true };
-}
-
-function formatOrderItems(lineItems) {
-  if (!lineItems || lineItems.length === 0) {
-    return 'Digital Items';
-  }
-  
-  return lineItems.map(item => {
-    let itemName = item.title;
-    if (item.variant_title && item.variant_title !== 'Default Title') {
-      itemName += ` (${item.variant_title})`;
+    function showError(message) {
+      const errorEl = document.getElementById('errorMessage');
+      errorEl.textContent = message;
+      errorEl.style.display = 'block';
+      setTimeout(() => {
+        errorEl.style.display = 'none';
+      }, 10000);
     }
-    if (item.quantity > 1) {
-      itemName += ` x${item.quantity}`;
+
+    function showSuccess(message) {
+      const successEl = document.getElementById('successMessage');
+      successEl.textContent = message;
+      successEl.style.display = 'block';
     }
-    return itemName;
-  }).join(', ');
-}
 
-// UTILITY FUNCTIONS
-function generateDeliveryId() {
-  const timestamp = Date.now();
-  const random = Math.random().toString(36).substr(2, 6).toUpperCase();
-  return `AG_${timestamp}_${random}`;
-}
-
-// MAIN HANDLER
-export default async function handler(req, res) {
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'POST, GET, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-
-  if (req.method === 'OPTIONS') {
-    return res.status(200).end();
-  }
-
-  if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Method Not Allowed' });
-  }
-
-  const startTime = Date.now();
-
-  try {
-    const { orderNumber, email, username, action, deliveryData } = req.body;
-    
-    console.log('🔍 API Request:', { 
-      orderNumber: !!orderNumber, 
-      email: !!email, 
-      username: !!username, 
-      action: action || 'none',
-      hasDeliveryData: !!deliveryData
-    });
-
-    // Debug Shopify connection
-    if (action === 'debug_shopify') {
-      try {
-        const debugResults = await debugShopifyConnection();
-        return res.status(200).json({
-          success: true,
-          debug: debugResults
-        });
-      } catch (error) {
-        return res.status(500).json({ 
-          success: false,
-          error: error.message,
-          stack: DEBUG_MODE ? error.stack : undefined
-        });
+    function showValidation(elementId, message, isValid) {
+      const validationEl = document.getElementById(elementId);
+      const inputEl = document.getElementById(elementId.replace('Validation', ''));
+      
+      if (validationEl) {
+        validationEl.textContent = message;
+        validationEl.className = `validation-message ${isValid ? 'success' : 'error'}`;
+        validationEl.style.display = 'block';
+      }
+      
+      if (inputEl) {
+        inputEl.className = isValid ? 'valid' : 'error';
       }
     }
 
-    // Firestore test
-    if (action === 'test_firestore') {
+    function validateEmailFormat(email) {
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      return emailRegex.test(email);
+    }
+
+    async function verifyOrder() {
+      const orderNumber = document.getElementById('orderNumber').value.trim();
+      const email = document.getElementById('emailAddress').value.trim();
+      const verifyBtn = document.getElementById('verifyOrderBtn');
+
+      // Reset validation states
+      document.getElementById('orderValidation').style.display = 'none';
+      document.getElementById('emailValidation').style.display = 'none';
+      document.getElementById('orderNumber').className = '';
+      document.getElementById('emailAddress').className = '';
+
+      if (!orderNumber) {
+        showValidation('orderValidation', 'Please enter your order number', false);
+        return;
+      }
+
+      if (!email) {
+        showValidation('emailValidation', 'Please enter your email address', false);
+        return;
+      }
+
+      if (!validateEmailFormat(email)) {
+        showValidation('emailValidation', 'Please enter a valid email format', false);
+        return;
+      }
+
+      verifyBtn.innerHTML = '<span class="loading"></span>Verifying Order...';
+      verifyBtn.disabled = true;
+
       try {
-        const db = initFirebase();
-        const testDoc = {
-          test: true,
-          timestamp: serverTimestamp(),
-          message: 'Firestore connection test',
-          testId: generateDeliveryId(),
-          createdAt: new Date().toISOString()
+        console.log('Sending order verification request:', { orderNumber, email });
+        
+        const response = await fetch('/api/verify', {
+          method: 'POST',
+          headers: { 
+            'Content-Type': 'application/json',
+            'Accept': 'application/json'
+          },
+          body: JSON.stringify({ 
+            orderNumber: orderNumber,
+            email: email,
+            action: 'verify_order'
+          }),
+        });
+
+        const responseText = await response.text();
+        console.log('Raw response:', responseText);
+        
+        let orderData;
+        
+        try {
+          orderData = JSON.parse(responseText);
+        } catch (parseError) {
+          console.error('JSON parse error:', parseError);
+          throw new Error(`Server returned invalid response format`);
+        }
+
+        console.log('Parsed response:', orderData);
+
+        if (!response.ok) {
+          if (response.status === 404) {
+            showError(orderData.error || 'Order not found. Please check your order number and email address.');
+          } else if (response.status === 400) {
+            showError(orderData.error || 'Invalid order information provided.');
+          } else {
+            showError(orderData.error || `Server error: ${response.status}`);
+          }
+          return;
+        }
+
+        currentOrderData = orderData;
+        
+        // Show order status
+        const orderStatus = document.getElementById('orderStatus');
+        orderStatus.innerHTML = `
+          <strong>✅ Order Verified!</strong><br>
+          Order #${orderData.orderNumber} found for ${orderData.email}<br>
+          <em>Items: ${orderData.items || 'Digital delivery items'}</em>
+        `;
+        
+        showStep(2);
+        
+      } catch (error) {
+        console.error('Order verification error:', error);
+        showError(`Error verifying order: ${error.message}`);
+      } finally {
+        verifyBtn.innerHTML = 'Verify Order';
+        verifyBtn.disabled = false;
+      }
+    }
+
+    async function verifyUsername() {
+      const username = document.getElementById('robloxUsername').value.trim();
+      const verifyBtn = document.getElementById('verifyBtn');
+
+      if (!username) {
+        showError('Please enter a username');
+        return;
+      }
+
+      if (username.length < 3 || username.length > 20) {
+        showError('Username must be between 3-20 characters');
+        return;
+      }
+
+      if (!/^[a-zA-Z0-9_]+$/.test(username)) {
+        showError('Username can only contain letters, numbers, and underscores');
+        return;
+      }
+
+      verifyBtn.innerHTML = '<span class="loading"></span>Verifying...';
+      verifyBtn.disabled = true;
+
+      try {
+        const response = await fetch('/api/verify', {
+          method: 'POST',
+          headers: { 
+            'Content-Type': 'application/json',
+            'Accept': 'application/json'
+          },
+          body: JSON.stringify({ 
+            username: username,
+            action: 'verify_username' 
+          }),
+        });
+
+        const responseText = await response.text();
+        let userData;
+        
+        try {
+          userData = JSON.parse(responseText);
+        } catch (parseError) {
+          throw new Error(`Invalid JSON response: ${parseError.message}`);
+        }
+
+        if (!response.ok) {
+          showError(userData.error || `Server error: ${response.status}`);
+          return;
+        }
+
+        currentUserData = {
+          username: userData.username,
+          avatar: userData.avatarUrl,
+          userId: userData.userId,
         };
-        
-        const testRef = await addDoc(collection(db, 'connection_tests'), testDoc);
-        const elapsed = Date.now() - startTime;
-        
-        return res.status(200).json({
-          success: true,
-          message: 'Firestore connection successful',
-          testDocId: testRef.id,
-          timing: elapsed
-        });
-        
+
+        displayUserProfile(currentUserData);
       } catch (error) {
-        return res.status(500).json({ 
-          success: false,
-          error: error.message
-        });
+        console.error('Verification error:', error);
+        showError(`Error: ${error.message}`);
+      } finally {
+        verifyBtn.innerHTML = 'Verify Username';
+        verifyBtn.disabled = false;
       }
     }
 
-    // Route requests
-    if (action === 'verify_order' && orderNumber && email) {
-      return await handleOrderVerification(req, res, orderNumber, email);
-    }
-    
-    if (action === 'verify_username' && username) {
-      return await handleUsernameVerification(req, res, username);
+    function confirmProfile() {
+      if (!currentUserData || !currentOrderData) return;
+      showStep(3);
     }
 
-    if (action === 'register_delivery' && deliveryData) {
-      return await handleDeliveryRegistration(req, res, deliveryData);
+    function friendDeliveryStaff() {
+      showSuccess('🎉 Opening meow82412\'s profile for friend request...');
+      
+      setTimeout(() => {
+        window.open('https://www.roblox.com/users/8579897302/profile', '_blank');
+        
+        setTimeout(() => {
+          alert(`Profile opened! If it didn't open automatically, copy this link:\n\nhttps://www.roblox.com/users/8579897302/profile\n\nPlease send a friend request to meow82412 before joining the delivery server.`);
+        }, 1000);
+      }, 500);
     }
 
-    // Fallback detection
-    if (orderNumber && email && !username) {
-      return await handleOrderVerification(req, res, orderNumber, email);
-    }
-    
-    if (username && !orderNumber && !email) {
-      return await handleUsernameVerification(req, res, username);
+    // UPDATED: Enhanced joinDeliveryServer with Firestore registration
+    async function joinDeliveryServer() {
+      if (!currentUserData || !currentOrderData) {
+        showError('Missing required information');
+        return;
+      }
+
+      const joinBtn = document.getElementById('joinServerBtn');
+      const firestoreStatus = document.getElementById('firestoreStatus');
+      const firestoreStatusText = document.getElementById('firestoreStatusText');
+      const registrationIdDisplay = document.getElementById('registrationIdDisplay');
+      const registrationIdText = document.getElementById('registrationIdText');
+
+      // Show Firestore status
+      firestoreStatus.style.display = 'block';
+      firestoreStatusText.textContent = 'Saving to Firestore...';
+      
+      joinBtn.innerHTML = '<span class="loading"></span>Registering & Opening Server...';
+      joinBtn.disabled = true;
+
+      const finalData = {
+        order: currentOrderData,
+        roblox: currentUserData,
+        timestamp: new Date().toISOString(),
+        serverJoinTime: new Date().toISOString()
+      };
+      
+      console.log('Final registration data:', finalData);
+      
+      // Show immediate feedback
+      showSuccess(`🎉 Welcome ${currentUserData.username}! Saving to Firestore...`);
+      
+      try {
+        // Send data to Firestore via API
+        console.log('🔥 Sending delivery registration to Firestore backend...');
+        
+        const response = await fetch('/api/verify', {
+          method: 'POST',
+          headers: { 
+            'Content-Type': 'application/json',
+            'Accept': 'application/json'
+          },
+          body: JSON.stringify({ 
+            action: 'register_delivery',
+            deliveryData: finalData
+          }),
+        });
+
+        const responseText = await response.text();
+        console.log('Firestore registration API response:', responseText);
+        
+        let result;
+        try {
+          result = JSON.parse(responseText);
+        } catch (parseError) {
+          console.error('Failed to parse registration response:', parseError);
+          console.error('Raw response:', responseText);
+          throw new Error('Invalid response format from server');
+        }
+
+        if (response.ok && result.success) {
+          console.log('✅ Firestore registration successful:', result);
+          
+          // Update status displays
+          firestoreStatusText.textContent = `✅ Saved successfully! (${result.data.timing}ms)`;
+          firestoreStatus.style.background = '#e8f5e9';
+          firestoreStatus.style.color = '#2e7d32';
+          firestoreStatus.style.borderLeftColor = '#4caf50';
+          
+          // Show registration ID
+          currentRegistrationId = result.registrationId;
+          registrationIdText.textContent = currentRegistrationId;
+          registrationIdDisplay.style.display = 'block';
+          
+          showSuccess(`✅ Registration saved to Firestore! ID: ${currentRegistrationId} - Opening server...`);
+          
+        } else {
+          console.error('❌ Firestore registration failed:', result);
+          firestoreStatusText.textContent = `❌ Save failed: ${result.error}`;
+          firestoreStatus.style.background = '#ffebee';
+          firestoreStatus.style.color = '#c62828';
+          firestoreStatus.style.borderLeftColor = '#f44336';
+          
+          if (result.canContinue) {
+            showError('⚠️ Firestore save failed, but you can still join the server');
+          } else {
+            showError(`Firestore registration error: ${result.error || 'Unknown error'}`);
+          }
+        }
+      } catch (error) {
+        console.error('Firestore registration request failed:', error);
+        firestoreStatusText.textContent = `❌ Connection failed: ${error.message}`;
+        firestoreStatus.style.background = '#ffebee';
+        firestoreStatus.style.color = '#c62828';
+        firestoreStatus.style.borderLeftColor = '#f44336';
+        showError('⚠️ Could not save to Firestore - continuing to server anyway...');
+      }
+      
+      // Always continue with opening the server (even if registration fails)
+      setTimeout(() => {
+        showSuccess(`🚀 Opening delivery server for ${currentUserData.username}...`);
+        
+        setTimeout(() => {
+          window.open('https://www.roblox.com/share?code=3f541f34634d5a448517bd05693722a1&type=Server', '_blank');
+          
+          setTimeout(() => {
+            const idText = currentRegistrationId ? 
+              `\n\n🔥 Firestore Registration ID: ${currentRegistrationId}` : 
+              '\n\n⚠️ Registration ID not available (save may have failed)';
+            
+            alert(`Server opened! If it didn't open automatically, copy this link:\n\nhttps://www.roblox.com/share?code=3f541f34634d5a448517bd05693722a1&type=Server\n\nPlease wait in the server for a staff member to deliver your items.${idText}`);
+          }, 1000);
+        }, 1500);
+      }, 1000);
+
+      // Re-enable button
+      setTimeout(() => {
+        joinBtn.innerHTML = '🚀 Join Delivery Server & Register';
+        joinBtn.disabled = false;
+      }, 3000);
     }
 
-    return res.status(400).json({ 
-      error: 'Invalid request parameters',
-      received: { orderNumber: !!orderNumber, email: !!email, username: !!username, action, hasDeliveryData: !!deliveryData },
-      expected: 'Either (orderNumber + email) for order verification, (username) for Roblox verification, or (deliveryData) for delivery registration'
+    function goBack(toStep) {
+      if (toStep === 1) {
+        currentOrderData = null;
+        document.getElementById('orderNumber').value = '';
+        document.getElementById('emailAddress').value = '';
+        document.getElementById('orderValidation').style.display = 'none';
+        document.getElementById('emailValidation').style.display = 'none';
+        document.getElementById('orderNumber').className = '';
+        document.getElementById('emailAddress').className = '';
+      } else if (toStep === 2) {
+        currentUserData = null;
+        document.getElementById('robloxUsername').value = '';
+        const profileSection = document.getElementById('profileSection');
+        const profileContent = document.getElementById('profileContent');
+        profileSection.style.display = 'none';
+        profileContent.innerHTML = '';
+        
+        // Reset Firestore status
+        const firestoreStatus = document.getElementById('firestoreStatus');
+        const registrationIdDisplay = document.getElementById('registrationIdDisplay');
+        firestoreStatus.style.display = 'none';
+        registrationIdDisplay.style.display = 'none';
+        currentRegistrationId = null;
+      }
+      
+      showStep(toStep);
+    }
+
+    // Event listeners
+    document.getElementById('orderNumber').addEventListener('keypress', function (e) {
+      if (e.key === 'Enter') {
+        document.getElementById('emailAddress').focus();
+      }
     });
 
-  } catch (error) {
-    const elapsed = Date.now() - startTime;
-    console.error('💥 API error:', error);
-    return res.status(500).json({ 
-      error: 'Internal server error',
-      message: error.message,
-      timing: elapsed
+    document.getElementById('emailAddress').addEventListener('keypress', function (e) {
+      if (e.key === 'Enter') {
+        verifyOrder();
+      }
     });
-  }
-}
+
+    document.getElementById('robloxUsername').addEventListener('keypress', function (e) {
+      if (e.key === 'Enter') {
+        verifyUsername();
+      }
+    });
+
+    // Real-time email format validation
+    document.getElementById('emailAddress').addEventListener('input', function(e) {
+      const email = e.target.value.trim();
+      const validationEl = document.getElementById('emailValidation');
+      
+      if (email.length === 0) {
+        validationEl.style.display = 'none';
+        e.target.className = '';
+        return;
+      }
+      
+      if (validateEmailFormat(email)) {
+        e.target.className = 'valid';
+        validationEl.style.display = 'none';
+      } else {
+        e.target.className = 'error';
+        showValidation('emailValidation', 'Please enter a valid email format', false);
+      }
+    });
+  </script>
+</body>
+</html>
