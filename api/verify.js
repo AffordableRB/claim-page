@@ -1,9 +1,7 @@
-// api/verify.js - Fixed REST API + Firebase Integration
+// api/verify.js - Clean Production API
 import { initializeApp, getApps } from 'firebase/app';
-import { getFirestore, collection, addDoc, serverTimestamp, connectFirestoreEmulator } from 'firebase/firestore';
+import { getFirestore, collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import crypto from 'crypto';
-
-const DEBUG_MODE = process.env.NODE_ENV === 'development';
 
 // Initialize Firebase (only once per cold start)
 let app;
@@ -12,8 +10,6 @@ let isInitialized = false;
 
 function initFirebase() {
   if (!isInitialized) {
-    console.log('🔥 Initializing Firebase...');
-    
     const requiredEnvVars = [
       'FIREBASE_API_KEY',
       'FIREBASE_AUTH_DOMAIN', 
@@ -44,13 +40,7 @@ function initFirebase() {
     }
     
     db = getFirestore(app);
-    
-    if (DEBUG_MODE && process.env.FIRESTORE_EMULATOR_HOST) {
-      connectFirestoreEmulator(db, 'localhost', 8080);
-    }
-    
     isInitialized = true;
-    console.log('✅ Firebase initialized successfully');
   }
   
   return db;
@@ -61,8 +51,6 @@ async function saveToFirestore(deliveryData) {
   const startTime = Date.now();
   
   try {
-    console.log('🔥 Saving delivery data to Firestore...');
-    
     const db = initFirebase();
     const registrationId = generateDeliveryId();
     
@@ -95,12 +83,6 @@ async function saveToFirestore(deliveryData) {
     const docRef = await addDoc(collection(db, 'delivery_requests'), docData);
     const elapsed = Date.now() - startTime;
     
-    console.log(`✅ Successfully saved to Firestore in ${elapsed}ms:`, {
-      registrationId: registrationId,
-      firestoreId: docRef.id,
-      collection: 'delivery_requests'
-    });
-    
     return {
       success: true,
       registrationId,
@@ -112,14 +94,12 @@ async function saveToFirestore(deliveryData) {
 
   } catch (error) {
     const elapsed = Date.now() - startTime;
-    console.error(`❌ Firestore save failed after ${elapsed}ms:`, error);
+    console.error(`Firestore save failed after ${elapsed}ms:`, error);
     throw error;
   }
 }
 
 async function handleDeliveryRegistration(req, res, deliveryData) {
-  console.log('📦 Processing Delivery Registration with Firestore...');
-  
   const startTime = Date.now();
   const REQUEST_TIMEOUT = 8000;
   
@@ -152,7 +132,7 @@ async function handleDeliveryRegistration(req, res, deliveryData) {
     const firestorePromise = saveToFirestore(deliveryData);
     const timeoutPromise = new Promise((_, reject) => {
       setTimeout(() => {
-        reject(new Error('Firestore operation timed out'));
+        reject(new Error('Registration operation timed out'));
       }, REQUEST_TIMEOUT);
     });
     
@@ -198,17 +178,17 @@ async function handleDeliveryRegistration(req, res, deliveryData) {
     
     return res.status(200).json({
       success: true,
-      message: 'Delivery request registered successfully in Firestore',
+      message: 'Delivery request registered successfully',
       registrationId: registrationRecord.registrationId,
       data: registrationRecord
     });
     
   } catch (error) {
     const elapsed = Date.now() - startTime;
-    console.error('❌ Delivery registration failed:', error);
+    console.error('Delivery registration failed:', error);
     
     return res.status(500).json({ 
-      error: 'Failed to save delivery request to Firestore',
+      error: 'Failed to save delivery request',
       message: error.message,
       timing: elapsed,
       canContinue: true // Let user continue to server anyway
@@ -216,10 +196,8 @@ async function handleDeliveryRegistration(req, res, deliveryData) {
   }
 }
 
-// FIXED SHOPIFY ORDER VERIFICATION - Added .myshopify.com
+// SHOPIFY ORDER VERIFICATION
 async function handleOrderVerification(req, res, orderNumber, email) {
-  console.log(`🔍 Shopify Order Verification: ${orderNumber} for ${email}`);
-  
   // Input validation
   if (!orderNumber || !email) {
     return res.status(400).json({ error: 'Order number and email are required' });
@@ -237,15 +215,13 @@ async function handleOrderVerification(req, res, orderNumber, email) {
   try {
     // Check if we have required environment variables
     if (!process.env.SHOPIFY_SHOP_DOMAIN || !process.env.SHOPIFY_ACCESS_TOKEN) {
-      console.error('Missing Shopify credentials');
       return res.status(500).json({ error: 'Server configuration error' });
     }
 
-    // Search for the order in Shopify using the FIXED method
+    // Search for the order in Shopify
     const searchResult = await findShopifyOrder(cleanOrderNumber, cleanEmail);
     
     if (!searchResult) {
-      console.log('❌ No matching order found');
       return res.status(404).json({ 
         error: 'Order not found',
         details: 'Please check your order number and try again'
@@ -254,7 +230,6 @@ async function handleOrderVerification(req, res, orderNumber, email) {
 
     // Check if order was found but email doesn't match
     if (!searchResult.emailMatch) {
-      console.log('❌ Order found but email mismatch');
       return res.status(400).json({ 
         error: 'Email does not match the order number',
         details: 'The order number exists but is associated with a different email address. Please check your email and try again.'
@@ -271,8 +246,6 @@ async function handleOrderVerification(req, res, orderNumber, email) {
         details: validationResult.details 
       });
     }
-
-    console.log('✅ Order verification successful:', order.name);
 
     // Return successful verification
     return res.status(200).json({
@@ -293,13 +266,12 @@ async function handleOrderVerification(req, res, orderNumber, email) {
     console.error('Shopify API error:', error);
     return res.status(500).json({ 
       error: 'Failed to verify order',
-      message: 'Please try again in a moment',
-      details: DEBUG_MODE ? error.message : undefined
+      message: 'Please try again in a moment'
     });
   }
 }
 
-// FIXED SHOPIFY SEARCH FUNCTION - Smart domain handling
+// SHOPIFY SEARCH FUNCTION
 async function findShopifyOrder(orderNumber, email) {
   const shopDomain = process.env.SHOPIFY_SHOP_DOMAIN;
   const accessToken = process.env.SHOPIFY_ACCESS_TOKEN;
@@ -322,28 +294,11 @@ async function findShopifyOrder(orderNumber, email) {
   ];
 
   const uniqueSearchQueries = [...new Set(searchQueries)];
-
-  if (DEBUG_MODE) {
-    console.log('🐛 DEBUG: Order search details:', {
-      originalOrderNumber: orderNumber,
-      searchQueries: uniqueSearchQueries,
-      shopDomain,
-      baseUrl,
-      hasAccessToken: !!accessToken,
-      email
-    });
-  }
-
   let foundOrderWithWrongEmail = null;
 
   for (const query of uniqueSearchQueries) {
     try {
-      console.log(`Searching Shopify for order: ${query}`);
-      
-      // FIXED: Use smart baseUrl that handles both domain formats
       const nameSearchUrl = `${baseUrl}/admin/api/${apiVersion}/orders.json?name=${encodeURIComponent(query)}&limit=1`;
-      
-      console.log(`🔗 Making request to: ${nameSearchUrl}`); // Debug log
       
       const response = await fetch(nameSearchUrl, {
         headers: {
@@ -353,9 +308,6 @@ async function findShopifyOrder(orderNumber, email) {
       });
 
       if (!response.ok) {
-        console.error(`Shopify API error for query ${query}: ${response.status} ${response.statusText}`);
-        const errorText = await response.text();
-        console.error(`Error response: ${errorText}`);
         continue;
       }
 
@@ -365,28 +317,20 @@ async function findShopifyOrder(orderNumber, email) {
         const order = data.orders[0];
         
         if (order.email && order.email.toLowerCase() === email) {
-          console.log(`✅ Found matching order: ${order.name} via query: ${query}`);
           return { order, emailMatch: true };
         } else {
-          console.log(`❌ Order found but email doesn't match: ${order.email} vs ${email} (query: ${query})`);
           foundOrderWithWrongEmail = order;
         }
       }
       
     } catch (error) {
-      console.error(`Error searching for order ${query}:`, error);
       continue;
     }
   }
 
   // Method 2: Search by email and filter
   try {
-    console.log(`Searching orders by email: ${email}`);
-    
-    // FIXED: Use smart baseUrl that handles both domain formats
     const emailSearchUrl = `${baseUrl}/admin/api/${apiVersion}/orders.json?email=${encodeURIComponent(email)}&limit=50`;
-    
-    console.log(`🔗 Making email search request to: ${emailSearchUrl}`); // Debug log
     
     const response = await fetch(emailSearchUrl, {
       headers: {
@@ -408,13 +352,9 @@ async function findShopifyOrder(orderNumber, email) {
         });
         
         if (matchingOrder) {
-          console.log(`✅ Found matching order via email search: ${matchingOrder.name}`);
           return { order: matchingOrder, emailMatch: true };
         }
       }
-    } else {
-      const errorText = await response.text();
-      console.error(`Email search failed: ${response.status} ${response.statusText}`, errorText);
     }
   } catch (error) {
     console.error('Error searching by email:', error);
@@ -427,7 +367,6 @@ async function findShopifyOrder(orderNumber, email) {
   return null;
 }
 
-// YOUR WORKING VALIDATION FUNCTION (unchanged)
 function validateOrderForDelivery(order) {
   if (order.financial_status !== 'paid' && order.financial_status !== 'partially_paid') {
     return {
@@ -497,10 +436,8 @@ function formatOrderItems(lineItems) {
   }).join(', ');
 }
 
-// YOUR WORKING ROBLOX USERNAME VERIFICATION (unchanged)
+// ROBLOX USERNAME VERIFICATION
 async function handleUsernameVerification(req, res, username) {
-  console.log(`🎮 Roblox Username Verification: ${username}`);
-  
   if (!username || typeof username !== 'string' || username.trim() === '') {
     return res.status(400).json({ error: 'Username is required' });
   }
@@ -515,11 +452,8 @@ async function handleUsernameVerification(req, res, username) {
     return res.status(400).json({ error: 'Username can only contain letters, numbers, and underscores' });
   }
 
-  console.log(`Searching for Roblox user: ${cleanUsername}`);
-
   // Method 1: Username-to-ID conversion
   try {
-    console.log('Attempting username-to-ID conversion...');
     const usernameToIdResponse = await fetch('https://users.roblox.com/v1/usernames/users', {
       method: 'POST',
       headers: {
@@ -538,8 +472,6 @@ async function handleUsernameVerification(req, res, username) {
         const userData = usernameData.data[0];
         
         if (userData.name && userData.name.toLowerCase() === cleanUsername.toLowerCase()) {
-          console.log('✅ Found exact match via username-to-ID API:', userData.name);
-          
           let avatarUrl = `https://www.roblox.com/headshot-thumbnail/image?userId=${userData.id}&width=150&height=150&format=png&v=${Date.now()}`;
           
           try {
@@ -551,7 +483,7 @@ async function handleUsernameVerification(req, res, username) {
               }
             }
           } catch (avatarError) {
-            console.log('Avatar API failed, using fallback URL');
+            // Use fallback URL
           }
 
           return res.status(200).json({
@@ -566,12 +498,11 @@ async function handleUsernameVerification(req, res, username) {
       }
     }
   } catch (apiError) {
-    console.error('❌ Username-to-ID API error:', apiError.message);
+    console.error('Username-to-ID API error:', apiError.message);
   }
 
   // Method 2: Fallback to search API
   try {
-    console.log('Falling back to search API...');
     const userSearchResponse = await fetch(`https://users.roblox.com/v1/users/search?keyword=${encodeURIComponent(cleanUsername)}&limit=10`);
     
     if (userSearchResponse.ok) {
@@ -583,8 +514,6 @@ async function handleUsernameVerification(req, res, username) {
         );
         
         if (exactMatch) {
-          console.log('✅ Found exact match via search API:', exactMatch.name);
-          
           let avatarUrl = `https://www.roblox.com/headshot-thumbnail/image?userId=${exactMatch.id}&width=150&height=150&format=png&v=${Date.now()}`;
           
           try {
@@ -596,7 +525,7 @@ async function handleUsernameVerification(req, res, username) {
               }
             }
           } catch (avatarError) {
-            console.log('Avatar API failed, using fallback URL');
+            // Use fallback URL
           }
 
           return res.status(200).json({
@@ -611,10 +540,9 @@ async function handleUsernameVerification(req, res, username) {
       }
     }
   } catch (apiError) {
-    console.error('❌ Search API error:', apiError.message);
+    console.error('Search API error:', apiError.message);
   }
 
-  console.log('❌ Username verification failed with both methods');
   return res.status(404).json({ 
     error: `User "${cleanUsername}" not found`,
     details: 'Please check the spelling and try again (case-sensitive)'
@@ -646,45 +574,6 @@ export default async function handler(req, res) {
 
   try {
     const { orderNumber, email, username, action, deliveryData } = req.body;
-    
-    console.log('🔍 API Request:', { 
-      orderNumber: !!orderNumber, 
-      email: !!email, 
-      username: !!username, 
-      action: action || 'none',
-      hasDeliveryData: !!deliveryData,
-      shopDomain: process.env.SHOPIFY_SHOP_DOMAIN // Added for debugging
-    });
-
-    // Firestore test
-    if (action === 'test_firestore') {
-      try {
-        const db = initFirebase();
-        const testDoc = {
-          test: true,
-          timestamp: serverTimestamp(),
-          message: 'Firestore connection test',
-          testId: generateDeliveryId(),
-          createdAt: new Date().toISOString()
-        };
-        
-        const testRef = await addDoc(collection(db, 'connection_tests'), testDoc);
-        const elapsed = Date.now() - startTime;
-        
-        return res.status(200).json({
-          success: true,
-          message: 'Firestore connection successful',
-          testDocId: testRef.id,
-          timing: elapsed
-        });
-        
-      } catch (error) {
-        return res.status(500).json({ 
-          success: false,
-          error: error.message
-        });
-      }
-    }
 
     // Route requests
     if (action === 'verify_order' && orderNumber && email) {
@@ -716,7 +605,7 @@ export default async function handler(req, res) {
 
   } catch (error) {
     const elapsed = Date.now() - startTime;
-    console.error('💥 API error:', error);
+    console.error('API error:', error);
     return res.status(500).json({ 
       error: 'Internal server error',
       message: error.message,
