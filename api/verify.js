@@ -150,16 +150,26 @@ async function findShopifyOrder(orderNumber, email) {
   const apiVersion = process.env.SHOPIFY_API_VERSION || '2024-01';
   
   // Shopify order numbers can have different formats
-  // They might be #1001, AF1001, or just 1001
+  // They might be #1001, AF1001, AG-1004, or just 1001
   const searchQueries = [
     orderNumber,
     orderNumber.replace(/^#/, ''), // Remove # if present
-    `#${orderNumber.replace(/^#/, '')}` // Add # if not present
+    `#${orderNumber.replace(/^#/, '')}`, // Add # if not present
+    // Handle AG- format specifically
+    orderNumber.replace(/^AG-/, ''), // Remove AG- if present
+    `AG-${orderNumber.replace(/^(AG-|#)/, '')}`, // Add AG- if not present
+    // Handle other common prefixes
+    orderNumber.replace(/^AF/, ''), // Remove AF if present
+    `AF${orderNumber.replace(/^(AF|AG-|#)/, '')}` // Add AF if not present
   ];
+
+  // Remove duplicates from search queries
+  const uniqueSearchQueries = [...new Set(searchQueries)];
 
   if (DEBUG_MODE) {
     console.log('🐛 DEBUG: Order search details:', {
-      searchQueries,
+      originalOrderNumber: orderNumber,
+      searchQueries: uniqueSearchQueries,
       shopDomain,
       hasAccessToken: !!accessToken,
       email
@@ -168,7 +178,7 @@ async function findShopifyOrder(orderNumber, email) {
 
   let foundOrderWithWrongEmail = null;
 
-  for (const query of searchQueries) {
+  for (const query of uniqueSearchQueries) {
     try {
       console.log(`Searching Shopify for order: ${query}`);
       
@@ -183,7 +193,7 @@ async function findShopifyOrder(orderNumber, email) {
       });
 
       if (!response.ok) {
-        console.error(`Shopify API error: ${response.status}`);
+        console.error(`Shopify API error for query ${query}: ${response.status}`);
         continue;
       }
 
@@ -194,10 +204,10 @@ async function findShopifyOrder(orderNumber, email) {
         
         // Verify email matches
         if (order.email && order.email.toLowerCase() === email) {
-          console.log(`✅ Found matching order: ${order.name}`);
+          console.log(`✅ Found matching order: ${order.name} via query: ${query}`);
           return { order, emailMatch: true };
         } else {
-          console.log(`❌ Order found but email doesn't match: ${order.email} vs ${email}`);
+          console.log(`❌ Order found but email doesn't match: ${order.email} vs ${email} (query: ${query})`);
           foundOrderWithWrongEmail = order;
           // Continue searching in case there's another order with the same number but correct email
         }
@@ -228,10 +238,13 @@ async function findShopifyOrder(orderNumber, email) {
       if (data.orders && data.orders.length > 0) {
         // Look for matching order number in this customer's orders
         const matchingOrder = data.orders.find(order => {
-          return searchQueries.some(query => 
-            order.name === query || 
-            order.order_number?.toString() === query.replace(/^#/, '')
-          );
+          return uniqueSearchQueries.some(query => {
+            // Check both order name and order number
+            return order.name === query || 
+                   order.order_number?.toString() === query.replace(/^(#|AG-|AF)/, '') ||
+                   // Also check if the order name contains AG- and matches
+                   (order.name && order.name.includes('AG-') && order.name === `AG-${query.replace(/^(#|AG-|AF)/, '')}`);
+          });
         });
         
         if (matchingOrder) {
