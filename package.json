@@ -5,8 +5,8 @@
   "main": "index.js",
   "scripts": {
     "dev": "vercel dev",
-    "build": "echo 'No build step required'",
-    "start": "echo 'Static site - no start command needed'"
+    "build": "echo \"No build step required\"",
+    "start": "echo \"Static site - no start command needed\""
   },
   "dependencies": {
     "firebase": "^10.7.1"
