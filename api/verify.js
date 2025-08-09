@@ -413,7 +413,7 @@ export default async function handler(req, res) {
   console.log('Body:', JSON.stringify(req.body, null, 2));
   
   // Add debug endpoint for testing Shopify connection
-  if (req.body.action === 'debug_shopify') {
+  if (req.body?.action === 'debug_shopify') {
     try {
       const testUrl = `https://${process.env.SHOPIFY_SHOP_DOMAIN}/admin/api/2024-01/orders.json?limit=1`;
       const testResponse = await fetch(testUrl, {
@@ -460,8 +460,15 @@ export default async function handler(req, res) {
   }
 
   try {
+    // Ensure req.body exists and handle parsing issues
+    if (!req.body) {
+      console.error('No request body received');
+      return res.status(400).json({ error: 'No request body provided' });
+    }
+
     const { orderNumber, email, username, action, deliveryData } = req.body;
     
+    console.log('Raw request body:', req.body);
     console.log('API Request parsed:', { 
       orderNumber: !!orderNumber, 
       email: !!email, 
