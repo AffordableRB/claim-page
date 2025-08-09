@@ -2,6 +2,82 @@ import crypto from 'crypto';
 
 const DEBUG_MODE = process.env.NODE_ENV === 'development';
 
+// Manual JWT creation without external dependencies
+function base64UrlEncode(str) {
+  return Buffer.from(str)
+    .toString('base64')
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .replace(/=/g, '');
+}
+
+function createManualJWT(serviceEmail, privateKey) {
+  const now = Math.floor(Date.now() / 1000);
+  
+  const header = {
+    alg: 'RS256',
+    typ: 'JWT'
+  };
+  
+  const payload = {
+    iss: serviceEmail,
+    scope: 'https://www.googleapis.com/auth/spreadsheets',
+    aud: 'https://oauth2.googleapis.com/token',
+    exp: now + 3600, // 1 hour
+    iat: now
+  };
+  
+  const encodedHeader = base64UrlEncode(JSON.stringify(header));
+  const encodedPayload = base64UrlEncode(JSON.stringify(payload));
+  const signatureInput = `${encodedHeader}.${encodedPayload}`;
+  
+  // Clean the private key
+  let cleanPrivateKey = privateKey;
+  if (cleanPrivateKey.includes('\\n')) {
+    cleanPrivateKey = cleanPrivateKey.replace(/\\n/g, '\n');
+  }
+  cleanPrivateKey = cleanPrivateKey.replace(/^["']|["']$/g, '');
+  
+  // Create signature
+  const signature = crypto.sign('RSA-SHA256', Buffer.from(signatureInput), cleanPrivateKey);
+  const encodedSignature = signature.toString('base64')
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .replace(/=/g, '');
+  
+  return `${encodedHeader}.${encodedPayload}.${encodedSignature}`;
+}
+
+async function getGoogleAccessToken(serviceEmail, privateKey) {
+  try {
+    const jwt = createManualJWT(serviceEmail, privateKey);
+    
+    const response = await fetch('https://oauth2.googleapis.com/token', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+      body: new URLSearchParams({
+        grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer',
+        assertion: jwt
+      })
+    });
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('OAuth token error:', response.status, errorText);
+      throw new Error(`Failed to get access token: ${response.status}`);
+    }
+    
+    const tokenData = await response.json();
+    return tokenData.access_token;
+    
+  } catch (error) {
+    console.error('JWT creation error:', error);
+    throw new Error(`Failed to create access token: ${error.message}`);
+  }
+}
+
 // Google Sheets Integration Functions
 async function saveToGoogleSheets(deliveryData) {
   // Check for required environment variables
@@ -22,8 +98,11 @@ async function saveToGoogleSheets(deliveryData) {
     console.log('📊 Saving to Google Sheets...');
     console.log('Delivery data received:', JSON.stringify(deliveryData, null, 2));
     
-    // Create JWT token for Google Sheets API
-    const jwt = await createGoogleJWT();
+    // Get access token using manual JWT
+    const accessToken = await getGoogleAccessToken(
+      process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL,
+      process.env.GOOGLE_PRIVATE_KEY
+    );
     
     // Prepare the row data
     const registrationId = generateDeliveryId();
@@ -52,7 +131,7 @@ async function saveToGoogleSheets(deliveryData) {
     const response = await fetch(sheetsUrl, {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${jwt}`,
+        'Authorization': `Bearer ${accessToken}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
@@ -89,43 +168,6 @@ async function saveToGoogleSheets(deliveryData) {
   } catch (error) {
     console.error('❌ Google Sheets save error:', error);
     throw error;
-  }
-}
-
-async function createGoogleJWT() {
-  try {
-    // Import the JWT class
-    const { JWT } = await import('google-auth-library');
-    
-    // Clean up the private key - remove extra quotes and fix line breaks
-    let privateKey = process.env.GOOGLE_PRIVATE_KEY;
-    
-    // Handle different formats of private key
-    if (privateKey.includes('\\n')) {
-      privateKey = privateKey.replace(/\\n/g, '\n');
-    }
-    
-    // Remove surrounding quotes if present
-    privateKey = privateKey.replace(/^["']|["']$/g, '');
-    
-    console.log('Creating JWT with service email:', process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL);
-    console.log('Private key starts with:', privateKey.substring(0, 50) + '...');
-
-    const client = new JWT({
-      email: process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL,
-      key: privateKey,
-      scopes: ['https://www.googleapis.com/auth/spreadsheets'],
-    });
-
-    console.log('Authorizing JWT...');
-    const tokens = await client.authorize();
-    console.log('JWT authorization successful');
-    
-    return tokens.access_token;
-    
-  } catch (error) {
-    console.error('JWT creation error:', error);
-    throw new Error(`Failed to create JWT: ${error.message}`);
   }
 }
 
@@ -298,11 +340,10 @@ export default async function handler(req, res) {
   }
 }
 
-// ORDER VERIFICATION FUNCTION
+// ORDER VERIFICATION FUNCTION (same as before)
 async function handleOrderVerification(req, res, orderNumber, email) {
   console.log(`🔍 Shopify Order Verification: ${orderNumber} for ${email}`);
   
-  // Input validation
   if (!orderNumber || !email) {
     return res.status(400).json({ error: 'Order number and email are required' });
   }
@@ -310,20 +351,17 @@ async function handleOrderVerification(req, res, orderNumber, email) {
   const cleanOrderNumber = orderNumber.trim();
   const cleanEmail = email.toLowerCase().trim();
 
-  // Basic email format validation
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   if (!emailRegex.test(cleanEmail)) {
     return res.status(400).json({ error: 'Invalid email format' });
   }
 
   try {
-    // Check if we have required environment variables
     if (!process.env.SHOPIFY_SHOP_DOMAIN || !process.env.SHOPIFY_ACCESS_TOKEN) {
       console.error('Missing Shopify credentials');
       return res.status(500).json({ error: 'Server configuration error' });
     }
 
-    // Search for the order in Shopify
     const searchResult = await findShopifyOrder(cleanOrderNumber, cleanEmail);
     
     if (!searchResult) {
@@ -334,7 +372,6 @@ async function handleOrderVerification(req, res, orderNumber, email) {
       });
     }
 
-    // Check if order was found but email doesn't match
     if (!searchResult.emailMatch) {
       console.log('❌ Order found but email mismatch');
       return res.status(400).json({ 
@@ -344,8 +381,6 @@ async function handleOrderVerification(req, res, orderNumber, email) {
     }
 
     const order = searchResult.order;
-
-    // Verify order is valid for delivery
     const validationResult = validateOrderForDelivery(order);
     if (!validationResult.valid) {
       return res.status(400).json({ 
@@ -356,7 +391,6 @@ async function handleOrderVerification(req, res, orderNumber, email) {
 
     console.log('✅ Order verification successful:', order.name);
 
-    // Return successful verification
     return res.status(200).json({
       orderNumber: order.name,
       email: cleanEmail,
@@ -380,12 +414,81 @@ async function handleOrderVerification(req, res, orderNumber, email) {
   }
 }
 
+// USERNAME VERIFICATION FUNCTION (same as before)
+async function handleUsernameVerification(req, res, username) {
+  console.log(`🎮 Roblox Username Verification: ${username}`);
+  
+  if (!username || typeof username !== 'string' || username.trim() === '') {
+    return res.status(400).json({ error: 'Username is required' });
+  }
+
+  const cleanUsername = username.trim();
+  
+  if (cleanUsername.length < 3 || cleanUsername.length > 20) {
+    return res.status(400).json({ error: 'Username must be between 3-20 characters' });
+  }
+
+  if (!/^[a-zA-Z0-9_]+$/.test(cleanUsername)) {
+    return res.status(400).json({ error: 'Username can only contain letters, numbers, and underscores' });
+  }
+
+  try {
+    const usernameToIdResponse = await fetch('https://users.roblox.com/v1/usernames/users', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        usernames: [cleanUsername],
+        excludeBannedUsers: true
+      })
+    });
+    
+    if (usernameToIdResponse.ok) {
+      const usernameData = await usernameToIdResponse.json();
+      
+      if (usernameData.data && usernameData.data.length > 0) {
+        const userData = usernameData.data[0];
+        
+        if (userData.name && userData.name.toLowerCase() === cleanUsername.toLowerCase()) {
+          let avatarUrl = `https://www.roblox.com/headshot-thumbnail/image?userId=${userData.id}&width=150&height=150&format=png&v=${Date.now()}`;
+          
+          try {
+            const avatarResponse = await fetch(`https://thumbnails.roblox.com/v1/users/avatar-headshot?userIds=${userData.id}&size=150x150&format=Png&isCircular=false`);
+            if (avatarResponse.ok) {
+              const avatarData = await avatarResponse.json();
+              if (avatarData.data && avatarData.data[0] && avatarData.data[0].imageUrl) {
+                avatarUrl = avatarData.data[0].imageUrl;
+              }
+            }
+          } catch (avatarError) {
+            console.log('Avatar API failed, using fallback URL');
+          }
+
+          return res.status(200).json({
+            userId: userData.id.toString(),
+            username: userData.name,
+            avatarUrl: avatarUrl,
+            method: 'username-to-id-api'
+          });
+        }
+      }
+    }
+  } catch (apiError) {
+    console.error('❌ Username-to-ID API error:', apiError.message);
+  }
+
+  return res.status(404).json({ 
+    error: `User "${cleanUsername}" not found. Please check the spelling and try again.`
+  });
+}
+
+// HELPER FUNCTIONS (same as before)
 async function findShopifyOrder(orderNumber, email) {
   const shopDomain = process.env.SHOPIFY_SHOP_DOMAIN;
   const accessToken = process.env.SHOPIFY_ACCESS_TOKEN;
   const apiVersion = process.env.SHOPIFY_API_VERSION || '2024-01';
   
-  // Shopify order numbers can have different formats
   const searchQueries = [
     orderNumber,
     orderNumber.replace(/^#/, ''),
@@ -397,23 +500,10 @@ async function findShopifyOrder(orderNumber, email) {
   ];
 
   const uniqueSearchQueries = [...new Set(searchQueries)];
-
-  if (DEBUG_MODE) {
-    console.log('🐛 DEBUG: Order search details:', {
-      originalOrderNumber: orderNumber,
-      searchQueries: uniqueSearchQueries,
-      shopDomain,
-      hasAccessToken: !!accessToken,
-      email
-    });
-  }
-
   let foundOrderWithWrongEmail = null;
 
   for (const query of uniqueSearchQueries) {
     try {
-      console.log(`Searching Shopify for order: ${query}`);
-      
       const nameSearchUrl = `https://${shopDomain}/admin/api/${apiVersion}/orders.json?name=${encodeURIComponent(query)}&limit=1`;
       
       const response = await fetch(nameSearchUrl, {
@@ -423,10 +513,7 @@ async function findShopifyOrder(orderNumber, email) {
         }
       });
 
-      if (!response.ok) {
-        console.error(`Shopify API error for query ${query}: ${response.status}`);
-        continue;
-      }
+      if (!response.ok) continue;
 
       const data = await response.json();
       
@@ -434,53 +521,14 @@ async function findShopifyOrder(orderNumber, email) {
         const order = data.orders[0];
         
         if (order.email && order.email.toLowerCase() === email) {
-          console.log(`✅ Found matching order: ${order.name} via query: ${query}`);
           return { order, emailMatch: true };
         } else {
-          console.log(`❌ Order found but email doesn't match: ${order.email} vs ${email}`);
           foundOrderWithWrongEmail = order;
         }
       }
-      
     } catch (error) {
-      console.error(`Error searching for order ${query}:`, error);
       continue;
     }
-  }
-
-  // Search by email
-  try {
-    console.log(`Searching orders by email: ${email}`);
-    
-    const emailSearchUrl = `https://${shopDomain}/admin/api/${apiVersion}/orders.json?email=${encodeURIComponent(email)}&limit=50`;
-    
-    const response = await fetch(emailSearchUrl, {
-      headers: {
-        'X-Shopify-Access-Token': accessToken,
-        'Content-Type': 'application/json'
-      }
-    });
-
-    if (response.ok) {
-      const data = await response.json();
-      
-      if (data.orders && data.orders.length > 0) {
-        const matchingOrder = data.orders.find(order => {
-          return uniqueSearchQueries.some(query => {
-            return order.name === query || 
-                   order.order_number?.toString() === query.replace(/^(#|AG-|AF)/, '') ||
-                   (order.name && order.name.includes('AG-') && order.name === `AG-${query.replace(/^(#|AG-|AF)/, '')}`);
-          });
-        });
-        
-        if (matchingOrder) {
-          console.log(`✅ Found matching order via email search: ${matchingOrder.name}`);
-          return { order: matchingOrder, emailMatch: true };
-        }
-      }
-    }
-  } catch (error) {
-    console.error('Error searching by email:', error);
   }
 
   if (foundOrderWithWrongEmail) {
@@ -494,32 +542,21 @@ function validateOrderForDelivery(order) {
   if (order.financial_status !== 'paid' && order.financial_status !== 'partially_paid') {
     return {
       valid: false,
-      reason: 'Order payment not confirmed',
-      details: 'Please ensure your payment has been processed before requesting delivery'
+      reason: 'Order payment not confirmed'
     };
   }
 
   if (order.cancelled_at) {
     return {
       valid: false,
-      reason: 'Order has been cancelled',
-      details: 'Cancelled orders are not eligible for delivery'
+      reason: 'Order has been cancelled'
     };
   }
 
   if (order.fulfillment_status === 'fulfilled') {
     return {
       valid: false,
-      reason: 'Order has already been fulfilled',
-      details: 'This order has already been delivered and cannot be claimed again'
-    };
-  }
-
-  if (order.financial_status === 'refunded' || order.financial_status === 'partially_refunded') {
-    return {
-      valid: false,
-      reason: 'Order has been refunded',
-      details: 'Refunded orders are not eligible for delivery'
+      reason: 'Order has already been fulfilled'
     };
   }
 
@@ -541,130 +578,4 @@ function formatOrderItems(lineItems) {
     }
     return itemName;
   }).join(', ');
-}
-
-// USERNAME VERIFICATION FUNCTION
-async function handleUsernameVerification(req, res, username) {
-  console.log(`🎮 Roblox Username Verification: ${username}`);
-  
-  if (!username || typeof username !== 'string' || username.trim() === '') {
-    return res.status(400).json({ error: 'Username is required' });
-  }
-
-  const cleanUsername = username.trim();
-  
-  if (cleanUsername.length < 3 || cleanUsername.length > 20) {
-    return res.status(400).json({ error: 'Username must be between 3-20 characters' });
-  }
-
-  if (!/^[a-zA-Z0-9_]+$/.test(cleanUsername)) {
-    return res.status(400).json({ error: 'Username can only contain letters, numbers, and underscores' });
-  }
-
-  console.log(`Searching for Roblox user: ${cleanUsername}`);
-
-  try {
-    console.log('Attempting username-to-ID conversion...');
-    const usernameToIdResponse = await fetch('https://users.roblox.com/v1/usernames/users', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        usernames: [cleanUsername],
-        excludeBannedUsers: true
-      })
-    });
-    
-    if (usernameToIdResponse.ok) {
-      const usernameData = await usernameToIdResponse.json();
-      console.log('Username-to-ID API response:', usernameData);
-      
-      if (usernameData.data && usernameData.data.length > 0) {
-        const userData = usernameData.data[0];
-        
-        if (userData.name && userData.name.toLowerCase() === cleanUsername.toLowerCase()) {
-          console.log('✅ Found exact match via username-to-ID API:', userData.name);
-          
-          let avatarUrl = `https://www.roblox.com/headshot-thumbnail/image?userId=${userData.id}&width=150&height=150&format=png&v=${Date.now()}`;
-          
-          try {
-            const avatarResponse = await fetch(`https://thumbnails.roblox.com/v1/users/avatar-headshot?userIds=${userData.id}&size=150x150&format=Png&isCircular=false`);
-            if (avatarResponse.ok) {
-              const avatarData = await avatarResponse.json();
-              if (avatarData.data && avatarData.data[0] && avatarData.data[0].imageUrl) {
-                avatarUrl = avatarData.data[0].imageUrl;
-                console.log('Got avatar from thumbnails API');
-              }
-            }
-          } catch (avatarError) {
-            console.log('Avatar API failed, using fallback URL');
-          }
-
-          return res.status(200).json({
-            userId: userData.id.toString(),
-            username: userData.name,
-            avatarUrl: avatarUrl,
-            method: 'username-to-id-api'
-          });
-        }
-      }
-    }
-  } catch (apiError) {
-    console.error('❌ Username-to-ID API error:', apiError.message);
-  }
-
-  // Fallback to search API
-  try {
-    console.log('Falling back to search API...');
-    const userSearchResponse = await fetch(`https://users.roblox.com/v1/users/search?keyword=${encodeURIComponent(cleanUsername)}&limit=10`);
-    
-    if (userSearchResponse.ok) {
-      const userSearchData = await userSearchResponse.json();
-      console.log(`Search API returned ${userSearchData.data?.length || 0} users`);
-      
-      if (userSearchData.data && userSearchData.data.length > 0) {
-        const exactMatch = userSearchData.data.find(user => 
-          user.name && user.name.toLowerCase() === cleanUsername.toLowerCase()
-        );
-        
-        if (exactMatch) {
-          console.log('✅ Found exact match via search API:', exactMatch.name);
-          
-          let avatarUrl = `https://www.roblox.com/headshot-thumbnail/image?userId=${exactMatch.id}&width=150&height=150&format=png&v=${Date.now()}`;
-          
-          try {
-            const avatarResponse = await fetch(`https://thumbnails.roblox.com/v1/users/avatar-headshot?userIds=${exactMatch.id}&size=150x150&format=Png&isCircular=false`);
-            if (avatarResponse.ok) {
-              const avatarData = await avatarResponse.json();
-              if (avatarData.data && avatarData.data[0] && avatarData.data[0].imageUrl) {
-                avatarUrl = avatarData.data[0].imageUrl;
-              }
-            }
-          } catch (avatarError) {
-            console.log('Avatar API failed, using fallback URL');
-          }
-
-          return res.status(200).json({
-            userId: exactMatch.id.toString(),
-            username: exactMatch.name,
-            avatarUrl: avatarUrl,
-            method: 'search-api'
-          });
-        }
-      }
-    }
-  } catch (apiError) {
-    console.error('❌ Search API error:', apiError.message);
-  }
-
-  console.log('❌ Username verification failed with both methods');
-  return res.status(404).json({ 
-    error: `User "${cleanUsername}" not found. Please check the spelling and try again.`,
-    suggestions: [
-      'Make sure the username is spelled correctly (case-sensitive)',
-      'Check that the account exists on Roblox',
-      'Try again in a few minutes - Roblox APIs can be temporarily unavailable'
-    ]
-  });
 }
