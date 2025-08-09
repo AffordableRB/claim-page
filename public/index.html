@@ -272,8 +272,7 @@
       border-left: 4px solid #4caf50;
     }
 
-    /* NEW: Firestore Status Indicators */
-    .firestore-status {
+    .registration-status {
       background: #e3f2fd;
       color: #1565c0;
       padding: 12px;
@@ -316,8 +315,8 @@
     <div class="logo">
       <img src="https://cdn.shopify.com/s/files/1/0943/2311/4269/files/sittingon-Photoroom-Photoroom.png?v=1754625898" alt="Affordable Garden Raccoon Logo" />
     </div>
-    <h1>Affordable.Garden Delivery Page</h1>
-    <p class="subtitle">Order Verification & Delivery (Powered by Firestore)</p>
+    <h1>Affordable.Garden Delivery</h1>
+    <p class="subtitle">Claim Your Roblox Items</p>
 
     <div class="step-indicator">
       <div class="step-dot active" id="dot1"></div>
@@ -354,11 +353,6 @@
 
         <button class="btn" onclick="verifyOrder()" id="verifyOrderBtn">
           Verify Order
-        </button>
-
-        <!-- NEW: Firestore Test Button -->
-        <button class="btn secondary" onclick="testFirestore()" id="testFirestoreBtn" style="margin-top: 10px;">
-          🔥 Test Firestore Connection
         </button>
       </div>
       
@@ -424,12 +418,12 @@
         </div>
       </div>
 
-      <!-- NEW: Firestore Registration Status -->
-      <div class="firestore-status" id="firestoreStatus" style="display: none;">
-        🔥 Firestore Status: <span id="firestoreStatusText">Processing...</span>
+      <!-- Registration Status -->
+      <div class="registration-status" id="registrationStatus" style="display: none;">
+        Registration Status: <span id="registrationStatusText">Processing...</span>
       </div>
 
-      <!-- NEW: Registration ID Display -->
+      <!-- Registration ID Display -->
       <div class="registration-id" id="registrationIdDisplay" style="display: none;">
         <strong>Registration ID:</strong> <span id="registrationIdText"></span>
       </div>
@@ -447,13 +441,13 @@
       </button>
 
       <button class="btn delivery" onclick="joinDeliveryServer()" id="joinServerBtn">
-        🚀 Join Delivery Server & Register
+        🚀 Join Delivery Server
       </button>
       
       <button class="btn secondary" onclick="goBack(2)" style="margin-top: 10px;">Go Back</button>
 
       <div class="note" style="margin-top: 20px; background: #cce0ff; color: #0b3d91; border-left: 4px solid #1952d4;">
-        <strong>Important:</strong> Please friend our delivery staff first, then join the server and wait for a staff member to deliver your items. Your registration will be saved to Firestore automatically.
+        <strong>Important:</strong> Please friend our delivery staff first, then join the server and wait for a staff member to deliver your items.
       </div>
     </div>
 
@@ -467,38 +461,6 @@
     let currentOrderData = null;
     let currentStep = 1;
     let currentRegistrationId = null;
-
-    // NEW: Firestore test function
-    async function testFirestore() {
-      const testBtn = document.getElementById('testFirestoreBtn');
-      testBtn.innerHTML = '<span class="loading"></span>Testing Firestore...';
-      testBtn.disabled = true;
-
-      try {
-        const response = await fetch('/api/verify', {
-          method: 'POST',
-          headers: { 
-            'Content-Type': 'application/json',
-            'Accept': 'application/json'
-          },
-          body: JSON.stringify({ action: 'test_firestore' })
-        });
-
-        const result = await response.json();
-        
-        if (result.success) {
-          showSuccess(`🔥 Firestore connected successfully! Test doc ID: ${result.testDocId}`);
-        } else {
-          showError(`Firestore test failed: ${result.error}`);
-        }
-        
-      } catch (error) {
-        showError(`Firestore test error: ${error.message}`);
-      } finally {
-        testBtn.innerHTML = '🔥 Test Firestore Connection';
-        testBtn.disabled = false;
-      }
-    }
 
     function updateStepIndicator(step) {
       for (let i = 1; i <= 3; i++) {
@@ -673,8 +635,6 @@
       verifyBtn.disabled = true;
 
       try {
-        console.log('Sending order verification request:', { orderNumber, email });
-        
         const response = await fetch('/api/verify', {
           method: 'POST',
           headers: { 
@@ -689,18 +649,13 @@
         });
 
         const responseText = await response.text();
-        console.log('Raw response:', responseText);
-        
         let orderData;
         
         try {
           orderData = JSON.parse(responseText);
         } catch (parseError) {
-          console.error('JSON parse error:', parseError);
           throw new Error(`Server returned invalid response format`);
         }
-
-        console.log('Parsed response:', orderData);
 
         if (!response.ok) {
           if (response.status === 404) {
@@ -816,7 +771,6 @@
       }, 500);
     }
 
-    // UPDATED: Enhanced joinDeliveryServer with Firestore registration
     async function joinDeliveryServer() {
       if (!currentUserData || !currentOrderData) {
         showError('Missing required information');
@@ -824,14 +778,14 @@
       }
 
       const joinBtn = document.getElementById('joinServerBtn');
-      const firestoreStatus = document.getElementById('firestoreStatus');
-      const firestoreStatusText = document.getElementById('firestoreStatusText');
+      const registrationStatus = document.getElementById('registrationStatus');
+      const registrationStatusText = document.getElementById('registrationStatusText');
       const registrationIdDisplay = document.getElementById('registrationIdDisplay');
       const registrationIdText = document.getElementById('registrationIdText');
 
-      // Show Firestore status
-      firestoreStatus.style.display = 'block';
-      firestoreStatusText.textContent = 'Saving to Firestore...';
+      // Show registration status
+      registrationStatus.style.display = 'block';
+      registrationStatusText.textContent = 'Saving registration...';
       
       joinBtn.innerHTML = '<span class="loading"></span>Registering & Opening Server...';
       joinBtn.disabled = true;
@@ -843,15 +797,11 @@
         serverJoinTime: new Date().toISOString()
       };
       
-      console.log('Final registration data:', finalData);
-      
       // Show immediate feedback
-      showSuccess(`🎉 Welcome ${currentUserData.username}! Saving to Firestore...`);
+      showSuccess(`🎉 Welcome ${currentUserData.username}! Processing your registration...`);
       
       try {
-        // Send data to Firestore via API
-        console.log('🔥 Sending delivery registration to Firestore backend...');
-        
+        // Send data to backend for registration
         const response = await fetch('/api/verify', {
           method: 'POST',
           headers: { 
@@ -865,53 +815,47 @@
         });
 
         const responseText = await response.text();
-        console.log('Firestore registration API response:', responseText);
         
         let result;
         try {
           result = JSON.parse(responseText);
         } catch (parseError) {
-          console.error('Failed to parse registration response:', parseError);
-          console.error('Raw response:', responseText);
           throw new Error('Invalid response format from server');
         }
 
         if (response.ok && result.success) {
-          console.log('✅ Firestore registration successful:', result);
-          
           // Update status displays
-          firestoreStatusText.textContent = `✅ Saved successfully! (${result.data.timing}ms)`;
-          firestoreStatus.style.background = '#e8f5e9';
-          firestoreStatus.style.color = '#2e7d32';
-          firestoreStatus.style.borderLeftColor = '#4caf50';
+          registrationStatusText.textContent = `✅ Registration saved successfully!`;
+          registrationStatus.style.background = '#e8f5e9';
+          registrationStatus.style.color = '#2e7d32';
+          registrationStatus.style.borderLeftColor = '#4caf50';
           
           // Show registration ID
           currentRegistrationId = result.registrationId;
           registrationIdText.textContent = currentRegistrationId;
           registrationIdDisplay.style.display = 'block';
           
-          showSuccess(`✅ Registration saved to Firestore! ID: ${currentRegistrationId} - Opening server...`);
+          showSuccess(`✅ Registration complete! ID: ${currentRegistrationId} - Opening server...`);
           
         } else {
-          console.error('❌ Firestore registration failed:', result);
-          firestoreStatusText.textContent = `❌ Save failed: ${result.error}`;
-          firestoreStatus.style.background = '#ffebee';
-          firestoreStatus.style.color = '#c62828';
-          firestoreStatus.style.borderLeftColor = '#f44336';
+          registrationStatusText.textContent = `❌ Registration failed: ${result.error}`;
+          registrationStatus.style.background = '#ffebee';
+          registrationStatus.style.color = '#c62828';
+          registrationStatus.style.borderLeftColor = '#f44336';
           
           if (result.canContinue) {
-            showError('⚠️ Firestore save failed, but you can still join the server');
+            showError('⚠️ Registration failed, but you can still join the server');
           } else {
-            showError(`Firestore registration error: ${result.error || 'Unknown error'}`);
+            showError(`Registration error: ${result.error || 'Unknown error'}`);
           }
         }
       } catch (error) {
-        console.error('Firestore registration request failed:', error);
-        firestoreStatusText.textContent = `❌ Connection failed: ${error.message}`;
-        firestoreStatus.style.background = '#ffebee';
-        firestoreStatus.style.color = '#c62828';
-        firestoreStatus.style.borderLeftColor = '#f44336';
-        showError('⚠️ Could not save to Firestore - continuing to server anyway...');
+        console.error('Registration request failed:', error);
+        registrationStatusText.textContent = `❌ Connection failed: ${error.message}`;
+        registrationStatus.style.background = '#ffebee';
+        registrationStatus.style.color = '#c62828';
+        registrationStatus.style.borderLeftColor = '#f44336';
+        showError('⚠️ Could not save registration - continuing to server anyway...');
       }
       
       // Always continue with opening the server (even if registration fails)
@@ -923,7 +867,7 @@
           
           setTimeout(() => {
             const idText = currentRegistrationId ? 
-              `\n\n🔥 Firestore Registration ID: ${currentRegistrationId}` : 
+              `\n\n📋 Registration ID: ${currentRegistrationId}` : 
               '\n\n⚠️ Registration ID not available (save may have failed)';
             
             alert(`Server opened! If it didn't open automatically, copy this link:\n\nhttps://www.roblox.com/share?code=3f541f34634d5a448517bd05693722a1&type=Server\n\nPlease wait in the server for a staff member to deliver your items.${idText}`);
@@ -933,7 +877,7 @@
 
       // Re-enable button
       setTimeout(() => {
-        joinBtn.innerHTML = '🚀 Join Delivery Server & Register';
+        joinBtn.innerHTML = '🚀 Join Delivery Server';
         joinBtn.disabled = false;
       }, 3000);
     }
@@ -955,10 +899,10 @@
         profileSection.style.display = 'none';
         profileContent.innerHTML = '';
         
-        // Reset Firestore status
-        const firestoreStatus = document.getElementById('firestoreStatus');
+        // Reset registration status
+        const registrationStatus = document.getElementById('registrationStatus');
         const registrationIdDisplay = document.getElementById('registrationIdDisplay');
-        firestoreStatus.style.display = 'none';
+        registrationStatus.style.display = 'none';
         registrationIdDisplay.style.display = 'none';
         currentRegistrationId = null;
       }
