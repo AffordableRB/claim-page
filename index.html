@@ -124,6 +124,16 @@
       box-shadow: 0 12px 25px rgba(21, 101, 192, 0.4);
     }
     
+    .btn.friend-request {
+      background: linear-gradient(45deg, #4CAF50, #66BB6A);
+      font-size: 16px;
+      padding: 16px 32px;
+      margin-bottom: 20px;
+    }
+    .btn.friend-request:hover {
+      box-shadow: 0 12px 25px rgba(76, 175, 80, 0.4);
+    }
+    
     .profile-avatar {
       width: 120px; height: 120px;
       border-radius: 50%;
@@ -301,7 +311,7 @@
           <input
             type="text"
             id="orderNumber"
-            placeholder="e.g., #1001, AF1234, etc."
+            placeholder="e.g., #1001, AF1234, AG-1004, etc."
             required
             autocomplete="off"
           />
@@ -392,8 +402,12 @@
       </div>
       
       <div style="color: #666; margin-bottom: 30px;">
-        Click the button below to join our private Roblox server for your delivery
+        Click the button below to friend our delivery staff, then join our private Roblox server for your delivery
       </div>
+
+      <button class="btn friend-request" onclick="friendDeliveryStaff()">
+        👥 Friend meow82412
+      </button>
 
       <button class="btn delivery" onclick="joinDeliveryServer()">
         🚀 Join Delivery Server
@@ -402,7 +416,7 @@
       <button class="btn secondary" onclick="goBack(2)" style="margin-top: 10px;">Go Back</button>
 
       <div class="note" style="margin-top: 20px; background: #cce0ff; color: #0b3d91; border-left: 4px solid #1952d4;">
-        <strong>Important:</strong> Please join the server and wait for a staff member to deliver your items. Keep this page open for reference.
+        <strong>Important:</strong> Please friend our delivery staff first, then join the server and wait for a staff member to deliver your items. Keep this page open for reference.
       </div>
     </div>
 
@@ -718,6 +732,18 @@
     function confirmProfile() {
       if (!currentUserData || !currentOrderData) return;
       showStep(3);
+    }
+
+    function friendDeliveryStaff() {
+      showSuccess('🎉 Opening meow82412\'s profile for friend request...');
+      
+      setTimeout(() => {
+        window.open('https://www.roblox.com/users/8579897302/profile', '_blank');
+        
+        setTimeout(() => {
+          alert(`Profile opened! If it didn't open automatically, copy this link:\n\nhttps://www.roblox.com/users/8579897302/profile\n\nPlease send a friend request to meow82412 before joining the delivery server.`);
+        }, 1000);
+      }, 500);
     }
 
     function joinDeliveryServer() {
