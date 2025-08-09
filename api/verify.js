@@ -2,6 +2,157 @@ import crypto from 'crypto';
 
 const DEBUG_MODE = process.env.NODE_ENV === 'development';
 
+// NEW: Google Sheets Integration Functions
+async function saveToGoogleSheets(deliveryData) {
+  if (!process.env.GOOGLE_SHEETS_SPREADSHEET_ID || 
+      !process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL || 
+      !process.env.GOOGLE_PRIVATE_KEY) {
+    console.error('❌ Missing Google Sheets environment variables');
+    throw new Error('Google Sheets not configured');
+  }
+
+  try {
+    console.log('📊 Saving to Google Sheets...');
+    
+    // Create JWT token for Google Sheets API
+    const jwt = await createGoogleJWT();
+    
+    // Prepare the row data
+    const registrationId = generateDeliveryId();
+    const timestamp = new Date().toISOString();
+    
+    const rowData = [
+      registrationId,                                    // A: Registration ID
+      timestamp,                                         // B: Timestamp
+      deliveryData.order.orderNumber || 'N/A',         // C: Order Number
+      deliveryData.order.email || 'N/A',               // D: Customer Email
+      deliveryData.roblox.username || 'N/A',           // E: Roblox Username
+      deliveryData.roblox.userId || 'N/A',             // F: Roblox User ID
+      deliveryData.order.items || 'Digital Items',      // G: Order Items
+      deliveryData.order.total || 'N/A',               // H: Order Total
+      'Pending Delivery',                                // I: Status
+      '',                                                // J: Delivery Notes (empty for now)
+      deliveryData.serverJoinTime || timestamp          // K: Server Join Time
+    ];
+
+    // Append to Google Sheets
+    const response = await fetch(
+      `https://sheets.googleapis.com/v4/spreadsheets/${process.env.GOOGLE_SHEETS_SPREADSHEET_ID}/values/Sheet1:append?valueInputOption=RAW`,
+      {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${jwt}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          values: [rowData]
+        })
+      }
+    );
+
+    if (!response.ok) {
+      const errorData = await response.text();
+      console.error('❌ Google Sheets API Error:', response.status, errorData);
+      throw new Error(`Google Sheets API error: ${response.status}`);
+    }
+
+    const result = await response.json();
+    console.log('✅ Successfully saved to Google Sheets:', result.updates);
+    
+    return {
+      success: true,
+      registrationId,
+      rowsAdded: result.updates?.updatedRows || 1,
+      range: result.updates?.updatedRange
+    };
+
+  } catch (error) {
+    console.error('❌ Google Sheets save error:', error);
+    throw error;
+  }
+}
+
+async function createGoogleJWT() {
+  const { JWT } = await import('google-auth-library');
+  
+  // Clean up the private key - remove extra quotes and fix line breaks
+  const privateKey = process.env.GOOGLE_PRIVATE_KEY
+    .replace(/\\n/g, '\n')
+    .replace(/^"/, '')
+    .replace(/"$/, '');
+
+  const client = new JWT({
+    email: process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL,
+    key: privateKey,
+    scopes: ['https://www.googleapis.com/auth/spreadsheets'],
+  });
+
+  const tokens = await client.authorize();
+  return tokens.access_token;
+}
+
+function generateDeliveryId() {
+  const timestamp = Date.now();
+  const random = Math.random().toString(36).substr(2, 6).toUpperCase();
+  return `DEL_${timestamp}_${random}`;
+}
+
+async function handleDeliveryRegistration(req, res, deliveryData) {
+  console.log('📦 Processing Delivery Registration...');
+  
+  try {
+    // Validate required data
+    if (!deliveryData.order || !deliveryData.roblox) {
+      return res.status(400).json({ 
+        error: 'Missing required delivery data',
+        required: ['order', 'roblox']
+      });
+    }
+
+    // Save to Google Sheets
+    const sheetResult = await saveToGoogleSheets(deliveryData);
+    
+    // Prepare response
+    const registrationRecord = {
+      registrationId: sheetResult.registrationId,
+      timestamp: deliveryData.timestamp,
+      order: {
+        orderNumber: deliveryData.order.orderNumber,
+        email: deliveryData.order.email,
+        items: deliveryData.order.items,
+        total: deliveryData.order.total
+      },
+      roblox: {
+        username: deliveryData.roblox.username,
+        userId: deliveryData.roblox.userId
+      },
+      status: 'pending_delivery',
+      savedToSheets: true,
+      sheetRange: sheetResult.range
+    };
+    
+    console.log('✅ Delivery registration successful:', registrationRecord.registrationId);
+    
+    return res.status(200).json({
+      success: true,
+      message: 'Delivery request registered successfully',
+      registrationId: registrationRecord.registrationId,
+      data: registrationRecord
+    });
+    
+  } catch (error) {
+    console.error('❌ Delivery registration failed:', error);
+    
+    // Return error but don't completely fail - user can still join server
+    return res.status(500).json({ 
+      error: 'Failed to save delivery request',
+      message: error.message,
+      canContinue: true // Let frontend know user can still proceed
+    });
+  }
+}
+
+// MAIN HANDLER (Updated)
 export default async function handler(req, res) {
   // Set CORS headers
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -17,13 +168,14 @@ export default async function handler(req, res) {
   }
 
   try {
-    const { orderNumber, email, username, action } = req.body;
+    const { orderNumber, email, username, action, deliveryData } = req.body;
     
     console.log('API Request received:', { 
       orderNumber: !!orderNumber, 
       email: !!email, 
       username: !!username, 
-      action: action || 'none'
+      action: action || 'none',
+      hasDeliveryData: !!deliveryData
     });
 
     // Method 1: Check by action parameter
@@ -33,6 +185,11 @@ export default async function handler(req, res) {
     
     if (action === 'verify_username' && username) {
       return await handleUsernameVerification(req, res, username);
+    }
+
+    // NEW: Handle delivery registration
+    if (action === 'register_delivery' && deliveryData) {
+      return await handleDeliveryRegistration(req, res, deliveryData);
     }
 
     // Method 2: Fallback - determine by parameters present
@@ -50,8 +207,8 @@ export default async function handler(req, res) {
     console.log('Invalid request format');
     return res.status(400).json({ 
       error: 'Invalid request parameters',
-      received: { orderNumber: !!orderNumber, email: !!email, username: !!username, action },
-      expected: 'Either (orderNumber + email) for order verification or (username) for Roblox verification'
+      received: { orderNumber: !!orderNumber, email: !!email, username: !!username, action, hasDeliveryData: !!deliveryData },
+      expected: 'Either (orderNumber + email) for order verification, (username) for Roblox verification, or (deliveryData) for delivery registration'
     });
 
   } catch (error) {
@@ -63,6 +220,7 @@ export default async function handler(req, res) {
   }
 }
 
+// EXISTING FUNCTIONS (Unchanged)
 async function handleOrderVerification(req, res, orderNumber, email) {
   console.log(`🔍 Shopify Order Verification: ${orderNumber} for ${email}`);
   
