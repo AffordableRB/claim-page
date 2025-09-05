@@ -1,4 +1,4 @@
-// api/verify.js - Clean Production API
+// api/verify.js - Enhanced Production API with Action Logging
 import { initializeApp, getApps } from 'firebase/app';
 import { getFirestore, collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import crypto from 'crypto';
@@ -46,7 +46,54 @@ function initFirebase() {
   return db;
 }
 
-// FIRESTORE SAVE FUNCTION
+// NEW FUNCTION: Log user actions (friend requests, server joins, etc.)
+async function logUserActionToFirestore(actionData) {
+  const startTime = Date.now();
+  
+  try {
+    const db = initFirebase();
+    const actionId = generateActionId();
+    
+    const docData = {
+      actionId,
+      timestamp: serverTimestamp(),
+      createdAt: new Date().toISOString(),
+      actionType: actionData.actionType || 'unknown_action',
+      actionDetails: actionData.actionDetails || {},
+      // Order information
+      orderNumber: actionData.order?.orderNumber || 'N/A',
+      orderEmail: actionData.order?.email || 'N/A',
+      orderId: actionData.order?.orderId || null,
+      // Roblox information
+      robloxUsername: actionData.roblox?.username || 'N/A',
+      robloxUserId: actionData.roblox?.userId?.toString() || 'N/A',
+      // Action metadata
+      userAgent: actionData.userAgent || null,
+      source: 'affordable_garden_delivery',
+      apiVersion: '2.1',
+      processingTime: Date.now() - startTime
+    };
+
+    const docRef = await addDoc(collection(db, 'user_actions'), docData);
+    const elapsed = Date.now() - startTime;
+    
+    return {
+      success: true,
+      actionId,
+      firestoreId: docRef.id,
+      collection: 'user_actions',
+      timing: elapsed,
+      docPath: `user_actions/${docRef.id}`
+    };
+
+  } catch (error) {
+    const elapsed = Date.now() - startTime;
+    console.error(`Action logging failed after ${elapsed}ms:`, error);
+    throw error;
+  }
+}
+
+// ENHANCED FIRESTORE SAVE FUNCTION FOR DELIVERY REGISTRATION
 async function saveToFirestore(deliveryData) {
   const startTime = Date.now();
   
@@ -96,6 +143,97 @@ async function saveToFirestore(deliveryData) {
     const elapsed = Date.now() - startTime;
     console.error(`Firestore save failed after ${elapsed}ms:`, error);
     throw error;
+  }
+}
+
+// NEW HANDLER: Process user action logging
+async function handleUserActionLogging(req, res, actionData) {
+  const startTime = Date.now();
+  const REQUEST_TIMEOUT = 8000;
+  
+  try {
+    if (!actionData.order || !actionData.roblox) {
+      return res.status(400).json({ 
+        error: 'Missing required action data',
+        required: ['order', 'roblox'],
+        received: {
+          hasOrder: !!actionData.order,
+          hasRoblox: !!actionData.roblox
+        }
+      });
+    }
+
+    if (!actionData.actionType) {
+      return res.status(400).json({
+        error: 'Missing actionType in action data'
+      });
+    }
+
+    actionData.userAgent = req.headers['user-agent'];
+    
+    const firestorePromise = logUserActionToFirestore(actionData);
+    const timeoutPromise = new Promise((_, reject) => {
+      setTimeout(() => {
+        reject(new Error('Action logging operation timed out'));
+      }, REQUEST_TIMEOUT);
+    });
+    
+    let firestoreResult;
+    try {
+      firestoreResult = await Promise.race([firestorePromise, timeoutPromise]);
+    } catch (timeoutError) {
+      const elapsed = Date.now() - startTime;
+      const fallbackId = generateActionId();
+      
+      return res.status(202).json({
+        success: false,
+        message: 'Action received (saving in background)',
+        actionId: fallbackId,
+        warning: 'Save operation timed out but action was processed',
+        canContinue: true,
+        timing: elapsed,
+        status: 'timeout'
+      });
+    }
+    
+    const elapsed = Date.now() - startTime;
+    
+    const actionRecord = {
+      actionId: firestoreResult.actionId,
+      timestamp: new Date().toISOString(),
+      actionType: actionData.actionType,
+      actionDetails: actionData.actionDetails,
+      order: {
+        orderNumber: actionData.order.orderNumber,
+        email: actionData.order.email
+      },
+      roblox: {
+        username: actionData.roblox.username,
+        userId: actionData.roblox.userId
+      },
+      savedToFirestore: true,
+      firestoreId: firestoreResult.firestoreId,
+      docPath: firestoreResult.docPath,
+      timing: elapsed
+    };
+    
+    return res.status(200).json({
+      success: true,
+      message: 'User action logged successfully',
+      actionId: actionRecord.actionId,
+      data: actionRecord
+    });
+    
+  } catch (error) {
+    const elapsed = Date.now() - startTime;
+    console.error('User action logging failed:', error);
+    
+    return res.status(500).json({ 
+      error: 'Failed to log user action',
+      message: error.message,
+      timing: elapsed,
+      canContinue: true
+    });
   }
 }
 
@@ -556,6 +694,12 @@ function generateDeliveryId() {
   return `AG_${timestamp}_${random}`;
 }
 
+function generateActionId() {
+  const timestamp = Date.now();
+  const random = Math.random().toString(36).substr(2, 4).toUpperCase();
+  return `ACTION_${timestamp}_${random}`;
+}
+
 // MAIN HANDLER
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -573,7 +717,7 @@ export default async function handler(req, res) {
   const startTime = Date.now();
 
   try {
-    const { orderNumber, email, username, action, deliveryData } = req.body;
+    const { orderNumber, email, username, action, deliveryData, actionData } = req.body;
 
     // Route requests
     if (action === 'verify_order' && orderNumber && email) {
@@ -588,6 +732,11 @@ export default async function handler(req, res) {
       return await handleDeliveryRegistration(req, res, deliveryData);
     }
 
+    // NEW: Handle user action logging
+    if (action === 'log_user_action' && actionData) {
+      return await handleUserActionLogging(req, res, actionData);
+    }
+
     // Fallback detection
     if (orderNumber && email && !username) {
       return await handleOrderVerification(req, res, orderNumber, email);
@@ -599,8 +748,15 @@ export default async function handler(req, res) {
 
     return res.status(400).json({ 
       error: 'Invalid request parameters',
-      received: { orderNumber: !!orderNumber, email: !!email, username: !!username, action, hasDeliveryData: !!deliveryData },
-      expected: 'Either (orderNumber + email) for order verification, (username) for Roblox verification, or (deliveryData) for delivery registration'
+      received: { 
+        orderNumber: !!orderNumber, 
+        email: !!email, 
+        username: !!username, 
+        action, 
+        hasDeliveryData: !!deliveryData,
+        hasActionData: !!actionData 
+      },
+      expected: 'Either (orderNumber + email) for order verification, (username) for Roblox verification, (deliveryData) for delivery registration, or (actionData) for action logging'
     });
 
   } catch (error) {
