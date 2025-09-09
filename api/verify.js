@@ -669,7 +669,7 @@ function formatOrderItems(lineItems) {
   }).join(', ');
 }
 
-// ROBLOX USERNAME VERIFICATION (unchanged)
+// ROBLOX USERNAME VERIFICATION
 async function handleUsernameVerification(req, res, username) {
   if (!username || typeof username !== 'string' || username.trim() === '') {
     return res.status(400).json({ error: 'Username is required' });
