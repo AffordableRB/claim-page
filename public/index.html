@@ -1072,6 +1072,9 @@
     }
 
     function goBack(toStep) {
+      // Stop fulfillment checking when navigating away from step 3
+      stopFulfillmentStatusChecking();
+      
       if (toStep === 1) {
         currentOrderData = null;
         document.getElementById('orderNumber').value = '';
