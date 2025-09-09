@@ -1029,20 +1029,6 @@
       }, 500);
     }
 
-    async function skipReview() {
-      // Log that user skipped the review
-      await logUserAction('review_skipped', {
-        message: 'User chose to skip leaving a review'
-      });
-      
-      showSuccess('✅ Thank you for using Affordable.Garden! Your order is complete.');
-      
-      // Could redirect to a thank you page or home page
-      setTimeout(() => {
-        alert('Thank you for your business! Feel free to contact support if you need any assistance with your items.');
-      }, 1000);
-    }
-
     async function logUserAction(actionType, actionDetails) {
       if (!currentUserData || !currentOrderData) return;
       
