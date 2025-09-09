@@ -315,23 +315,26 @@
     }
 
     .trustpilot-card {
-      background: linear-gradient(135deg, #00B67A 0%, #00A368 100%);
-      color: white;
+      background: white;
+      color: #333;
       padding: 30px;
       border-radius: 15px;
       margin: 25px 0;
       text-align: center;
+      border: 2px solid #e9ecef;
+      box-shadow: 0 8px 25px rgba(0,0,0,0.08);
     }
 
     .trustpilot-title {
-      font-size: 24px;
+      font-size: 22px;
       font-weight: 700;
       margin-bottom: 15px;
+      color: #333;
     }
 
     .trustpilot-subtitle {
       font-size: 16px;
-      opacity: 0.9;
+      color: #666;
       margin-bottom: 25px;
     }
 
@@ -519,17 +522,23 @@
     <!-- Step 4: Leave a Review -->
     <div class="step" id="step4">
       <div class="completion-message">
-        <div class="completion-title">🎉 Order Successful!</div>
-        <p>Your order will now be delivered to you: Please make sure to claim your items in-game. We hope you enjoyed your experience with Affordable.Garden!</p>
+        <div class="completion-title">🎉 Order Complete!</div>
+        <p>Your items have been successfully delivered. We hope you enjoyed your experience with Affordable.Garden!</p>
       </div>
 
       <div class="trustpilot-card">
-        <div class="trustpilot-title">Please leave a review for Affordable.Garden on Trustpilot. 💚</div>
-        <div class="trustpilot-subtitle">Your feedback means the world to us!</div>
+        <div class="trustpilot-title">Share Your Experience</div>
+        <div class="trustpilot-subtitle">Help others discover Affordable.Garden by leaving a review on Trustpilot</div>
+        <div class="stars">⭐⭐⭐⭐⭐</div>
         
         <button class="btn trustpilot" onclick="leaveTrustpilotReview()">
           📝 Leave a Review on Trustpilot
         </button>
+        
+        <button class="btn skip-review" onclick="skipReview()">
+          Skip for now
+        </button>
+      </div>
 
       <div class="summary-card">
         <div class="summary-item">
@@ -551,7 +560,7 @@
       </div>
 
       <div class="note" style="background: #e8f5e9; color: #2e7d32; border-left: 4px solid #4caf50;">
-        <strong>Thank you for choosing Affordable.Garden!</strong> If you have any issues with claiming your items, please contact our support team support@affordable.garden with your roblox username and order number.
+        <strong>Thank you for choosing Affordable.Garden!</strong> If you have any issues with your items, please contact our support team with your registration ID.
       </div>
     </div>
 
