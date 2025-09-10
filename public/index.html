@@ -133,27 +133,6 @@
     .btn.friend-request:hover {
       box-shadow: 0 12px 25px rgba(76, 175, 80, 0.4);
     }
-
-    .btn.trustpilot {
-      background: linear-gradient(45deg, #00B67A, #00C380);
-      font-size: 18px;
-      padding: 18px 36px;
-      margin-bottom: 15px;
-    }
-    .btn.trustpilot:hover {
-      box-shadow: 0 12px 25px rgba(0, 182, 122, 0.4);
-    }
-
-    .btn.skip-review {
-      background: #9E9E9E;
-      color: white;
-      font-size: 14px;
-      padding: 12px 24px;
-    }
-    .btn.skip-review:hover {
-      background: #757575;
-      box-shadow: 0 8px 20px rgba(0,0,0,0.2);
-    }
     
     .profile-avatar {
       width: 120px; height: 120px;
@@ -314,35 +293,6 @@
       word-break: break-all;
     }
 
-    .trustpilot-card {
-      background: linear-gradient(135deg, #00B67A 0%, #00A368 100%);
-      color: white;
-      padding: 30px;
-      border-radius: 15px;
-      margin: 25px 0;
-      text-align: center;
-    }
-
-    .trustpilot-title {
-      font-size: 22px;
-      font-weight: 700;
-      margin-bottom: 15px;
-      color: white;
-    }
-
-    .trustpilot-subtitle {
-      font-size: 16px;
-      color: white;
-      opacity: 0.9;
-      margin-bottom: 25px;
-    }
-
-    .stars {
-      font-size: 32px;
-      margin-bottom: 20px;
-      color: #FFD700;
-    }
-
     .completion-message {
       background: #e8f5e9;
       color: #2e7d32;
@@ -358,6 +308,57 @@
       font-weight: 700;
       margin-bottom: 10px;
     }
+
+    /* Trustpilot banner */
+    .trustpilot-banner {
+      background: linear-gradient(135deg, #00B67A 0%, #00A368 100%);
+      border-radius: 15px;
+      padding: 25px;
+      margin: 25px 0;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 20px;
+    }
+
+    .trustpilot-text {
+      color: white;
+      text-align: left;
+      flex: 1;
+    }
+
+    .trustpilot-title {
+      font-size: 20px;
+      font-weight: 600;
+      margin-bottom: 5px;
+    }
+
+    .trustpilot-subtitle {
+      font-size: 16px;
+      opacity: 0.9;
+    }
+
+    .trustpilot-logo-container {
+      background: white;
+      padding: 12px 20px;
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: all 0.3s ease;
+    }
+
+    .trustpilot-logo-container:hover {
+      background: #f8f9fa;
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    }
+
+    .trustpilot-logo-container img {
+      height: 24px;
+      width: auto;
+    }
     
     /* Mobile Responsive */
     @media (max-width: 768px) {
@@ -372,6 +373,16 @@
       
       .profile-buttons .btn {
         width: 100%;
+      }
+
+      .trustpilot-banner {
+        flex-direction: column;
+        text-align: center;
+        gap: 15px;
+      }
+
+      .trustpilot-text {
+        text-align: center;
       }
     }
   </style>
@@ -518,24 +529,22 @@
       </div>
     </div>
 
-    <!-- Step 4: Leave a Review -->
+    <!-- Step 4: Leave a Review - UPDATED -->
     <div class="step" id="step4">
       <div class="completion-message">
         <div class="completion-title">🎉 Order Complete!</div>
         <p>Your items have been successfully delivered. We hope you enjoyed your experience with Affordable.Garden!</p>
       </div>
 
-      <div class="trustpilot-card">
-        <div class="trustpilot-title">Please leave a review for Affordable.Garden on Trustpilot.</div>
-        <div class="trustpilot-subtitle">Your feedback helps us grow and deliver faster!💚</div>
-        
-        <button class="btn trustpilot" onclick="leaveTrustpilotReview()">
-          📝 Leave a Review on Trustpilot
-        </button>
-        
-        <button class="btn skip-review" onclick="skipReview()">
-          Skip for now
-        </button>
+      <!-- Trustpilot banner -->
+      <div class="trustpilot-banner">
+        <div class="trustpilot-text">
+          <div class="trustpilot-title">Please leave a review for Affordable.Garden on Trustpilot.</div>
+          <div class="trustpilot-subtitle">Your feedback helps us grow and deliver faster! 💚</div>
+        </div>
+        <div class="trustpilot-logo-container" onclick="leaveTrustpilotReview()">
+          <img src="https://cdn.shopify.com/s/files/1/0943/2311/4269/files/Trustpilot_logo.png?v=1757535883" alt="Trustpilot" />
+        </div>
       </div>
 
       <div class="summary-card">
@@ -810,323 +819,4 @@
       }
 
       if (username.length < 3 || username.length > 20) {
-        showError('Username must be between 3-20 characters');
-        return;
-      }
-
-      if (!/^[a-zA-Z0-9_]+$/.test(username)) {
-        showError('Username can only contain letters, numbers, and underscores');
-        return;
-      }
-
-      verifyBtn.innerHTML = '<span class="loading"></span>Verifying...';
-      verifyBtn.disabled = true;
-
-      try {
-        const response = await fetch('/api/verify', {
-          method: 'POST',
-          headers: { 
-            'Content-Type': 'application/json',
-            'Accept': 'application/json'
-          },
-          body: JSON.stringify({ 
-            username: username,
-            action: 'verify_username' 
-          }),
-        });
-
-        const responseText = await response.text();
-        let userData;
-        
-        try {
-          userData = JSON.parse(responseText);
-        } catch (parseError) {
-          throw new Error(`Invalid JSON response: ${parseError.message}`);
-        }
-
-        if (!response.ok) {
-          showError(userData.error || `Server error: ${response.status}`);
-          return;
-        }
-
-        currentUserData = {
-          username: userData.username,
-          avatar: userData.avatarUrl,
-          userId: userData.userId,
-        };
-
-        displayUserProfile(currentUserData);
-      } catch (error) {
-        console.error('Verification error:', error);
-        showError(`Error: ${error.message}`);
-      } finally {
-        verifyBtn.innerHTML = 'Verify Username';
-        verifyBtn.disabled = false;
-      }
-    }
-
-    function confirmProfile() {
-      if (!currentUserData || !currentOrderData) return;
-      showStep(3);
-    }
-
-    function friendDeliveryStaff() {
-      showSuccess('🎉 Opening meow82412\'s profile for friend request...');
-      
-      setTimeout(() => {
-        window.open('https://www.roblox.com/users/8579897302/profile', '_blank');
-        
-        setTimeout(() => {
-          alert(`Profile opened! If it didn't open automatically, copy this link:\n\nhttps://www.roblox.com/users/8579897302/profile\n\nPlease send a friend request to meow82412 before joining the delivery server.`);
-        }, 1000);
-      }, 500);
-    }
-
-    async function joinDeliveryServer() {
-      if (!currentUserData || !currentOrderData) {
-        showError('Missing required information');
-        return;
-      }
-
-      const joinBtn = document.getElementById('joinServerBtn');
-      const registrationStatus = document.getElementById('registrationStatus');
-      const registrationStatusText = document.getElementById('registrationStatusText');
-      const registrationIdDisplay = document.getElementById('registrationIdDisplay');
-      const registrationIdText = document.getElementById('registrationIdText');
-
-      // Show registration status
-      registrationStatus.style.display = 'block';
-      registrationStatusText.textContent = 'Saving registration...';
-      
-      joinBtn.innerHTML = '<span class="loading"></span>Registering & Opening Server...';
-      joinBtn.disabled = true;
-
-      const finalData = {
-        order: currentOrderData,
-        roblox: currentUserData,
-        timestamp: new Date().toISOString(),
-        serverJoinTime: new Date().toISOString()
-      };
-      
-      // Show immediate feedback
-      showSuccess(`🎉 Welcome ${currentUserData.username}! Processing your registration...`);
-      
-      try {
-        // Send data to backend for registration
-        const response = await fetch('/api/verify', {
-          method: 'POST',
-          headers: { 
-            'Content-Type': 'application/json',
-            'Accept': 'application/json'
-          },
-          body: JSON.stringify({ 
-            action: 'register_delivery',
-            deliveryData: finalData
-          }),
-        });
-
-        const responseText = await response.text();
-        
-        let result;
-        try {
-          result = JSON.parse(responseText);
-        } catch (parseError) {
-          throw new Error('Invalid response format from server');
-        }
-
-        if (response.ok && result.success) {
-          // Update status displays
-          registrationStatusText.textContent = `✅ Registration saved successfully!`;
-          registrationStatus.style.background = '#e8f5e9';
-          registrationStatus.style.color = '#2e7d32';
-          registrationStatus.style.borderLeftColor = '#4caf50';
-          
-          // Show registration ID
-          currentRegistrationId = result.registrationId;
-          registrationIdText.textContent = currentRegistrationId;
-          registrationIdDisplay.style.display = 'block';
-          
-          showSuccess(`✅ Registration complete! ID: ${currentRegistrationId} - Opening server...`);
-          
-        } else {
-          registrationStatusText.textContent = `❌ Registration failed: ${result.error}`;
-          registrationStatus.style.background = '#ffebee';
-          registrationStatus.style.color = '#c62828';
-          registrationStatus.style.borderLeftColor = '#f44336';
-          
-          if (result.canContinue) {
-            showError('⚠️ Registration failed, but you can still join the server');
-          } else {
-            showError(`Registration error: ${result.error || 'Unknown error'}`);
-          }
-        }
-      } catch (error) {
-        console.error('Registration request failed:', error);
-        registrationStatusText.textContent = `❌ Connection failed: ${error.message}`;
-        registrationStatus.style.background = '#ffebee';
-        registrationStatus.style.color = '#c62828';
-        registrationStatus.style.borderLeftColor = '#f44336';
-        showError('⚠️ Could not save registration - continuing to server anyway...');
-      }
-      
-      // Always continue with opening the server (even if registration fails)
-      setTimeout(() => {
-        showSuccess(`🚀 Opening delivery server for ${currentUserData.username}...`);
-        
-        setTimeout(() => {
-          window.open('https://www.roblox.com/share?code=3f541f34634d5a448517bd05693722a1&type=Server', '_blank');
-          
-          setTimeout(() => {
-            const idText = currentRegistrationId ? 
-              `\n\n📋 Registration ID: ${currentRegistrationId}` : 
-              '\n\n⚠️ Registration ID not available (save may have failed)';
-            
-            alert(`Server opened! If it didn't open automatically, copy this link:\n\nhttps://www.roblox.com/share?code=3f541f34634d5a448517bd05693722a1&type=Server\n\nPlease wait in the server for a staff member to deliver your items.${idText}`);
-            
-            // Auto-advance to step 4 after successful delivery registration
-            setTimeout(() => {
-              proceedToReviewStep();
-            }, 2000);
-          }, 1000);
-        }, 1500);
-      }, 1000);
-
-      // Re-enable button
-      setTimeout(() => {
-        joinBtn.innerHTML = '🚀 Join Delivery Server';
-        joinBtn.disabled = false;
-      }, 3000);
-    }
-
-    function proceedToReviewStep() {
-      // Update final summary in step 4
-      document.getElementById('finalSummaryOrder').textContent = currentOrderData.orderNumber;
-      document.getElementById('finalSummaryUsername').textContent = currentUserData.username;
-      document.getElementById('finalRegistrationId').textContent = currentRegistrationId || 'N/A';
-      
-      showStep(4);
-      
-      // Log that user reached the review step
-      logUserAction('review_step_reached', {
-        message: 'User successfully completed delivery process and reached review step'
-      });
-    }
-
-    async function leaveTrustpilotReview() {
-      // Log the review action
-      await logUserAction('trustpilot_review_clicked', {
-        message: 'User clicked to leave Trustpilot review',
-        redirectUrl: 'https://www.trustpilot.com/evaluate/affordable.garden'
-      });
-      
-      showSuccess('🌟 Thank you! Opening Trustpilot review page...');
-      
-      setTimeout(() => {
-        window.open('https://www.trustpilot.com/evaluate/affordable.garden', '_blank');
-        
-        setTimeout(() => {
-          alert(`Review page opened! If it didn't open automatically, copy this link:\n\nhttps://www.trustpilot.com/evaluate/affordable.garden\n\nThank you for taking the time to share your experience!`);
-        }, 1000);
-      }, 500);
-    }
-
-    async function logUserAction(actionType, actionDetails) {
-      if (!currentUserData || !currentOrderData) return;
-      
-      try {
-        const actionData = {
-          actionType: actionType,
-          actionDetails: actionDetails,
-          order: currentOrderData,
-          roblox: currentUserData
-        };
-        
-        await fetch('/api/verify', {
-          method: 'POST',
-          headers: { 
-            'Content-Type': 'application/json',
-            'Accept': 'application/json'
-          },
-          body: JSON.stringify({ 
-            action: 'log_user_action',
-            actionData: actionData
-          }),
-        });
-      } catch (error) {
-        console.error('Failed to log user action:', error);
-        // Don't show error to user as this is background logging
-      }
-    }
-
-    function goBack(toStep) {
-      // Stop fulfillment checking when navigating away from step 3
-      stopFulfillmentStatusChecking();
-      
-      if (toStep === 1) {
-        currentOrderData = null;
-        document.getElementById('orderNumber').value = '';
-        document.getElementById('emailAddress').value = '';
-        document.getElementById('orderValidation').style.display = 'none';
-        document.getElementById('emailValidation').style.display = 'none';
-        document.getElementById('orderNumber').className = '';
-        document.getElementById('emailAddress').className = '';
-      } else if (toStep === 2) {
-        currentUserData = null;
-        document.getElementById('robloxUsername').value = '';
-        const profileSection = document.getElementById('profileSection');
-        const profileContent = document.getElementById('profileContent');
-        profileSection.style.display = 'none';
-        profileContent.innerHTML = '';
-        
-        // Reset registration status
-        const registrationStatus = document.getElementById('registrationStatus');
-        const registrationIdDisplay = document.getElementById('registrationIdDisplay');
-        registrationStatus.style.display = 'none';
-        registrationIdDisplay.style.display = 'none';
-        currentRegistrationId = null;
-      }
-      
-      showStep(toStep);
-    }
-
-    // Event listeners
-    document.getElementById('orderNumber').addEventListener('keypress', function (e) {
-      if (e.key === 'Enter') {
-        document.getElementById('emailAddress').focus();
-      }
-    });
-
-    document.getElementById('emailAddress').addEventListener('keypress', function (e) {
-      if (e.key === 'Enter') {
-        verifyOrder();
-      }
-    });
-
-    document.getElementById('robloxUsername').addEventListener('keypress', function (e) {
-      if (e.key === 'Enter') {
-        verifyUsername();
-      }
-    });
-
-    // Real-time email format validation
-    document.getElementById('emailAddress').addEventListener('input', function(e) {
-      const email = e.target.value.trim();
-      const validationEl = document.getElementById('emailValidation');
-      
-      if (email.length === 0) {
-        validationEl.style.display = 'none';
-        e.target.className = '';
-        return;
-      }
-      
-      if (validateEmailFormat(email)) {
-        e.target.className = 'valid';
-        validationEl.style.display = 'none';
-      } else {
-        e.target.className = 'error';
-        showValidation('emailValidation', 'Please enter a valid email format', false);
-      }
-    });
-  </script>
-</body>
-</html>
+        showError('
