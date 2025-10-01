@@ -5,7 +5,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Affordable.Garden Delivery Page</title>
   
-  <!-- Load Poppins font -->
   <link href="https://fonts.googleapis.com/css2?family=Poppins&display=swap" rel="stylesheet" />
   
   <style>
@@ -37,9 +36,6 @@
       width: 100px;
       height: auto;
       margin: 0 auto 25px;
-      box-shadow: none;
-      border-radius: 0;
-      overflow: visible;
     }
     .logo img {
       width: 100%;
@@ -123,7 +119,6 @@
     .btn.delivery:hover {
       box-shadow: 0 12px 25px rgba(21, 101, 192, 0.4);
     }
-    
     .btn.friend-request {
       background: linear-gradient(45deg, #4CAF50, #66BB6A);
       font-size: 16px;
@@ -133,28 +128,6 @@
     .btn.friend-request:hover {
       box-shadow: 0 12px 25px rgba(76, 175, 80, 0.4);
     }
-
-    .btn.trustpilot {
-      background: linear-gradient(45deg, #00B67A, #00C380);
-      font-size: 18px;
-      padding: 18px 36px;
-      margin-bottom: 15px;
-    }
-    .btn.trustpilot:hover {
-      box-shadow: 0 12px 25px rgba(0, 182, 122, 0.4);
-    }
-
-    .btn.skip-review {
-      background: #9E9E9E;
-      color: white;
-      font-size: 14px;
-      padding: 12px 24px;
-    }
-    .btn.skip-review:hover {
-      background: #757575;
-      box-shadow: 0 8px 20px rgba(0,0,0,0.2);
-    }
-    
     .profile-avatar {
       width: 120px; height: 120px;
       border-radius: 50%;
@@ -170,18 +143,15 @@
       font-size: 18px; color: #555;
       margin-bottom: 25px;
     }
-    
     .profile-buttons {
       display: flex;
       gap: 15px;
       width: 100%;
     }
-    
     .profile-buttons .btn {
       margin-bottom: 0;
       flex: 1;
     }
-    
     .loading {
       display: inline-block; width: 20px; height: 20px;
       border: 3px solid #f3f3f3;
@@ -283,7 +253,6 @@
       color: #333;
       font-weight: 500;
     }
-    
     .order-status {
       background: #e8f5e9;
       color: #2e7d32;
@@ -292,7 +261,6 @@
       margin: 20px 0;
       border-left: 4px solid #4caf50;
     }
-
     .registration-status {
       background: #e3f2fd;
       color: #1565c0;
@@ -302,7 +270,6 @@
       font-size: 14px;
       border-left: 4px solid #2196f3;
     }
-    
     .registration-id {
       background: #f3e5f5;
       color: #7b1fa2;
@@ -313,36 +280,6 @@
       font-size: 12px;
       word-break: break-all;
     }
-
-    .trustpilot-card {
-      background: linear-gradient(135deg, #00B67A 0%, #00A368 100%);
-      color: white;
-      padding: 30px;
-      border-radius: 15px;
-      margin: 25px 0;
-      text-align: center;
-    }
-
-    .trustpilot-title {
-      font-size: 22px;
-      font-weight: 700;
-      margin-bottom: 15px;
-      color: white;
-    }
-
-    .trustpilot-subtitle {
-      font-size: 16px;
-      color: white;
-      opacity: 0.9;
-      margin-bottom: 25px;
-    }
-
-    .stars {
-      font-size: 32px;
-      margin-bottom: 20px;
-      color: #FFD700;
-    }
-
     .completion-message {
       background: #e8f5e9;
       color: #2e7d32;
@@ -352,24 +289,19 @@
       border-left: 4px solid #4caf50;
       text-align: center;
     }
-
     .completion-title {
       font-size: 20px;
       font-weight: 700;
       margin-bottom: 10px;
     }
-    
-    /* Mobile Responsive */
     @media (max-width: 768px) {
       .container {
         max-width: 500px;
         padding: 30px 20px;
       }
-      
       .profile-buttons {
         flex-direction: column;
       }
-      
       .profile-buttons .btn {
         width: 100%;
       }
@@ -433,7 +365,6 @@
       <div style="max-width: 500px; margin: 0 auto;">
         <div class="order-status" id="orderStatus"></div>
         
-        <!-- Profile section moved above username input -->
         <div id="profileSection" style="display: none; margin-bottom: 30px;">
           <div class="profile-card">
             <div id="profileContent"></div>
@@ -485,12 +416,10 @@
         </div>
       </div>
 
-      <!-- Registration Status -->
       <div class="registration-status" id="registrationStatus" style="display: none;">
         Registration Status: <span id="registrationStatusText">Processing...</span>
       </div>
 
-      <!-- Registration ID Display -->
       <div class="registration-id" id="registrationIdDisplay" style="display: none;">
         <strong>Registration ID:</strong> <span id="registrationIdText"></span>
       </div>
@@ -518,22 +447,11 @@
       </div>
     </div>
 
-    <!-- Step 4: Leave a Review -->
+    <!-- Step 4: Order Complete -->
     <div class="step" id="step4">
       <div class="completion-message">
         <div class="completion-title">🎉 Order Complete!</div>
-        <p>Your items will now be successfully delivered. Pre-orders will be delivered once our store opens (Hours: 9AM-12AM EST) We hope you enjoyed your experience with Affordable.Garden!</p>
-      </div>
-
-      <div class="trustpilot-card">
-        <div class="trustpilot-title">Please leave a review for Affordable.Garden on Trustpilot After Delivery.</div>
-        <div class="trustpilot-subtitle">Your feedback means the world to us and helps us grow!💚</div>
-        
-        <button class="btn trustpilot" onclick="leaveTrustpilotReview()">
-          <img src="https://cdn.shopify.com/s/files/1/0943/2311/4269/files/Trustpilot_white_star.png?v=1757709370" alt="Trustpilot star" style="width: 36px; height: 36px; vertical-align: -8px; margin-right: 8px;"> Leave a Review on Trustpilot
-        </button>
-        
-        
+        <p>Your items will now be successfully delivered. Pre-orders will be delivered once our store opens (Hours: 9AM-12AM EST). We hope you enjoyed your experience with Affordable.Garden!</p>
       </div>
 
       <div class="summary-card">
@@ -560,7 +478,6 @@
       </div>
     </div>
 
-    <!-- Error/Success Messages -->
     <div id="errorMessage" class="error-message" style="display: none"></div>
     <div id="successMessage" class="success-message" style="display: none"></div>
   </div>
@@ -592,7 +509,6 @@
       document.getElementById('step' + stepNumber).classList.add('active');
       updateStepIndicator(stepNumber);
       
-      // Clear messages when changing steps
       document.getElementById('errorMessage').style.display = 'none';
       document.getElementById('successMessage').style.display = 'none';
     }
@@ -607,10 +523,7 @@
       avatarImg.className = 'profile-avatar';
       avatarImg.alt = `${userData.username}'s Avatar`;
       
-      // Set up avatar with fallback handling
       avatarImg.onerror = function() {
-        console.log('Avatar failed to load, trying fallback...');
-        
         const fallbackUrls = [
           `https://www.roblox.com/bust-thumbnail/image?userId=${userData.userId}&width=150&height=150&format=png`,
           `https://www.roblox.com/headshot-thumbnail/image?userId=${userData.userId}&width=150&height=150&format=png&t=${Date.now()}`,
@@ -623,7 +536,6 @@
         if (nextIndex < fallbackUrls.length) {
           this.src = fallbackUrls[nextIndex];
         } else {
-          // Create placeholder avatar
           this.src = 'data:image/svg+xml,' + encodeURIComponent(`
             <svg xmlns="http://www.w3.org/2000/svg" width="150" height="150" viewBox="0 0 150 150">
               <rect width="150" height="150" fill="#4CAF50"/>
@@ -656,7 +568,6 @@
       confirmBtn.className = 'btn';
       confirmBtn.textContent = 'Yes, that\'s me!';
       confirmBtn.onclick = () => {
-        // Update summary for final step
         document.getElementById('summaryOrder').textContent = currentOrderData.orderNumber;
         document.getElementById('summaryUsername').textContent = currentUserData.username;
         document.getElementById('summaryEmail').textContent = currentOrderData.email;
@@ -719,7 +630,6 @@
       const email = document.getElementById('emailAddress').value.trim();
       const verifyBtn = document.getElementById('verifyOrderBtn');
 
-      // Reset validation states
       document.getElementById('orderValidation').style.display = 'none';
       document.getElementById('emailValidation').style.display = 'none';
       document.getElementById('orderNumber').className = '';
@@ -779,7 +689,6 @@
 
         currentOrderData = orderData;
         
-        // Show order status
         const orderStatus = document.getElementById('orderStatus');
         orderStatus.innerHTML = `
           <strong>✅ Order Verified!</strong><br>
@@ -869,7 +778,7 @@
     }
 
     function friendDeliveryStaff() {
-      showSuccess('🎉 Opening meow82412\'s profile for friend request...');
+      showSuccess('Opening meow82412\'s profile for friend request...');
       
       setTimeout(() => {
         window.open('https://www.roblox.com/users/8579897302/profile', '_blank');
@@ -892,7 +801,6 @@
       const registrationIdDisplay = document.getElementById('registrationIdDisplay');
       const registrationIdText = document.getElementById('registrationIdText');
 
-      // Show registration status
       registrationStatus.style.display = 'block';
       registrationStatusText.textContent = 'Saving registration...';
       
@@ -906,11 +814,9 @@
         serverJoinTime: new Date().toISOString()
       };
       
-      // Show immediate feedback
-      showSuccess(`🎉 Welcome ${currentUserData.username}! Processing your registration...`);
+      showSuccess(`Welcome ${currentUserData.username}! Processing your registration...`);
       
       try {
-        // Send data to backend for registration
         const response = await fetch('/api/verify', {
           method: 'POST',
           headers: { 
@@ -933,13 +839,11 @@
         }
 
         if (response.ok && result.success) {
-          // Update status displays
           registrationStatusText.textContent = `✅ Registration saved successfully!`;
           registrationStatus.style.background = '#e8f5e9';
           registrationStatus.style.color = '#2e7d32';
           registrationStatus.style.borderLeftColor = '#4caf50';
           
-          // Show registration ID
           currentRegistrationId = result.registrationId;
           registrationIdText.textContent = currentRegistrationId;
           registrationIdDisplay.style.display = 'block';
@@ -967,7 +871,6 @@
         showError('⚠️ Could not save registration - continuing to server anyway...');
       }
       
-      // Always continue with opening the server (even if registration fails)
       setTimeout(() => {
         showSuccess(`🚀 Opening delivery server for ${currentUserData.username}...`);
         
@@ -981,85 +884,28 @@
             
             alert(`Server opened! If it didn't open automatically, copy this link:\n\nhttps://www.roblox.com/share?code=3f541f34634d5a448517bd05693722a1&type=Server\n\nPlease wait in the server for a staff member to deliver your items.${idText}`);
             
-            // Auto-advance to step 4 after successful delivery registration
             setTimeout(() => {
-              proceedToReviewStep();
+              proceedToCompletionStep();
             }, 2000);
           }, 1000);
         }, 1500);
       }, 1000);
 
-      // Re-enable button
       setTimeout(() => {
-        joinBtn.innerHTML = '🚀 Join Delivery Server';
+        joinBtn.innerHTML = '🚀 Complete Order (Join Delivery Server)';
         joinBtn.disabled = false;
       }, 3000);
     }
 
-    function proceedToReviewStep() {
-      // Update final summary in step 4
+    function proceedToCompletionStep() {
       document.getElementById('finalSummaryOrder').textContent = currentOrderData.orderNumber;
       document.getElementById('finalSummaryUsername').textContent = currentUserData.username;
       document.getElementById('finalRegistrationId').textContent = currentRegistrationId || 'N/A';
       
       showStep(4);
-      
-      // Log that user reached the review step
-      logUserAction('review_step_reached', {
-        message: 'User successfully completed delivery process and reached review step'
-      });
-    }
-
-    async function leaveTrustpilotReview() {
-      // Log the review action
-      await logUserAction('trustpilot_review_clicked', {
-        message: 'User clicked to leave Trustpilot review',
-        redirectUrl: 'https://www.trustpilot.com/evaluate/affordable.garden'
-      });
-      
-      showSuccess('🌟 Thank you! Opening Trustpilot review page...');
-      
-      setTimeout(() => {
-        window.open('https://www.trustpilot.com/evaluate/affordable.garden', '_blank');
-        
-        setTimeout(() => {
-          alert(`Review page opened! If it didn't open automatically, copy this link:\n\nhttps://www.trustpilot.com/evaluate/affordable.garden\n\nThank you for taking the time to share your experience!`);
-        }, 1000);
-      }, 500);
-    }
-
-    async function logUserAction(actionType, actionDetails) {
-      if (!currentUserData || !currentOrderData) return;
-      
-      try {
-        const actionData = {
-          actionType: actionType,
-          actionDetails: actionDetails,
-          order: currentOrderData,
-          roblox: currentUserData
-        };
-        
-        await fetch('/api/verify', {
-          method: 'POST',
-          headers: { 
-            'Content-Type': 'application/json',
-            'Accept': 'application/json'
-          },
-          body: JSON.stringify({ 
-            action: 'log_user_action',
-            actionData: actionData
-          }),
-        });
-      } catch (error) {
-        console.error('Failed to log user action:', error);
-        // Don't show error to user as this is background logging
-      }
     }
 
     function goBack(toStep) {
-      // Stop fulfillment checking when navigating away from step 3
-      stopFulfillmentStatusChecking();
-      
       if (toStep === 1) {
         currentOrderData = null;
         document.getElementById('orderNumber').value = '';
@@ -1076,7 +922,6 @@
         profileSection.style.display = 'none';
         profileContent.innerHTML = '';
         
-        // Reset registration status
         const registrationStatus = document.getElementById('registrationStatus');
         const registrationIdDisplay = document.getElementById('registrationIdDisplay');
         registrationStatus.style.display = 'none';
@@ -1087,7 +932,6 @@
       showStep(toStep);
     }
 
-    // Event listeners
     document.getElementById('orderNumber').addEventListener('keypress', function (e) {
       if (e.key === 'Enter') {
         document.getElementById('emailAddress').focus();
@@ -1106,7 +950,6 @@
       }
     });
 
-    // Real-time email format validation
     document.getElementById('emailAddress').addEventListener('input', function(e) {
       const email = e.target.value.trim();
       const validationEl = document.getElementById('emailValidation');
