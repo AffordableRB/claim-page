@@ -1,4 +1,4 @@
-// api/verify.js - Enhanced Production API with Trustpilot Review Action Logging
+// api/verify.js - Simplified Production API (Review tracking removed)
 import { initializeApp, getApps } from 'firebase/app';
 import { getFirestore, collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import crypto from 'crypto';
@@ -46,112 +46,7 @@ function initFirebase() {
   return db;
 }
 
-// ENHANCED USER ACTION LOGGING - Now includes Trustpilot review tracking
-async function logUserActionToFirestore(actionData) {
-  const startTime = Date.now();
-  
-  try {
-    const db = initFirebase();
-    const actionId = generateActionId();
-    
-    // Enhanced action types for better analytics
-    const actionTypeMapping = {
-      'review_step_reached': 'Customer reached Trustpilot review step',
-      'trustpilot_review_clicked': 'Customer clicked to leave Trustpilot review',
-      'review_skipped': 'Customer skipped leaving a review',
-      'friend_request_sent': 'Customer sent friend request to delivery staff',
-      'server_joined': 'Customer joined delivery server',
-      'delivery_completed': 'Order delivery process completed'
-    };
-    
-    const docData = {
-      actionId,
-      timestamp: serverTimestamp(),
-      createdAt: new Date().toISOString(),
-      actionType: actionData.actionType || 'unknown_action',
-      actionDescription: actionTypeMapping[actionData.actionType] || 'Unknown user action',
-      actionDetails: actionData.actionDetails || {},
-      
-      // Order information
-      orderNumber: actionData.order?.orderNumber || 'N/A',
-      orderEmail: actionData.order?.email || 'N/A',
-      orderId: actionData.order?.orderId || null,
-      orderTotal: actionData.order?.total || null,
-      orderCurrency: actionData.order?.currency || 'USD',
-      orderItems: actionData.order?.items || 'Digital Items',
-      
-      // Roblox information
-      robloxUsername: actionData.roblox?.username || 'N/A',
-      robloxUserId: actionData.roblox?.userId?.toString() || 'N/A',
-      robloxAvatarUrl: actionData.roblox?.avatar || null,
-      
-      // Review-specific data (for Trustpilot analytics)
-      isReviewAction: ['review_step_reached', 'trustpilot_review_clicked', 'review_skipped'].includes(actionData.actionType),
-      reviewPlatform: actionData.actionType === 'trustpilot_review_clicked' ? 'trustpilot' : null,
-      reviewUrl: actionData.actionDetails?.redirectUrl || null,
-      
-      // Action metadata
-      userAgent: actionData.userAgent || null,
-      ipAddress: actionData.ipAddress || null,
-      source: 'affordable_garden_delivery_v2',
-      apiVersion: '2.2',
-      processingTime: Date.now() - startTime,
-      
-      // Step tracking
-      stepCompleted: getStepFromActionType(actionData.actionType),
-      customerJourneyStage: getCustomerJourneyStage(actionData.actionType)
-    };
-
-    const docRef = await addDoc(collection(db, 'user_actions'), docData);
-    const elapsed = Date.now() - startTime;
-    
-    return {
-      success: true,
-      actionId,
-      firestoreId: docRef.id,
-      collection: 'user_actions',
-      timing: elapsed,
-      docPath: `user_actions/${docRef.id}`,
-      actionType: actionData.actionType,
-      description: actionTypeMapping[actionData.actionType] || 'Unknown action'
-    };
-
-  } catch (error) {
-    const elapsed = Date.now() - startTime;
-    console.error(`Action logging failed after ${elapsed}ms:`, error);
-    throw error;
-  }
-}
-
-// Helper function to determine step from action type
-function getStepFromActionType(actionType) {
-  const stepMapping = {
-    'order_verified': 1,
-    'username_verified': 2,
-    'server_joined': 3,
-    'review_step_reached': 4,
-    'trustpilot_review_clicked': 4,
-    'review_skipped': 4
-  };
-  return stepMapping[actionType] || null;
-}
-
-// Helper function to determine customer journey stage
-function getCustomerJourneyStage(actionType) {
-  const stageMapping = {
-    'order_verified': 'verification',
-    'username_verified': 'account_linking',
-    'friend_request_sent': 'pre_delivery',
-    'server_joined': 'delivery',
-    'delivery_completed': 'fulfillment',
-    'review_step_reached': 'post_delivery',
-    'trustpilot_review_clicked': 'feedback_engagement',
-    'review_skipped': 'feedback_declined'
-  };
-  return stageMapping[actionType] || 'unknown';
-}
-
-// ENHANCED FIRESTORE SAVE FUNCTION FOR DELIVERY REGISTRATION
+// FIRESTORE SAVE FUNCTION FOR DELIVERY REGISTRATION
 async function saveToFirestore(deliveryData) {
   const startTime = Date.now();
   
@@ -184,17 +79,10 @@ async function saveToFirestore(deliveryData) {
       serverJoinTime: deliveryData.serverJoinTime || new Date().toISOString(),
       completedAt: null,
       
-      // Review tracking (new for v2.2)
-      reviewStepReached: false,
-      reviewClicked: false,
-      reviewSkipped: false,
-      reviewPlatform: null,
-      reviewTimestamp: null,
-      
       // System metadata
-      processedBy: 'delivery_system_v2.2',
+      processedBy: 'delivery_system_v2.3',
       source: 'affordable_garden_delivery',
-      apiVersion: '2.2',
+      apiVersion: '2.3',
       userAgent: deliveryData.userAgent || null,
       ipAddress: deliveryData.ipAddress || null,
       stepCompletionTimes: deliveryData.stepCompletionTimes || null,
@@ -220,116 +108,7 @@ async function saveToFirestore(deliveryData) {
   }
 }
 
-// ENHANCED USER ACTION HANDLER with better error handling and analytics
-async function handleUserActionLogging(req, res, actionData) {
-  const startTime = Date.now();
-  const REQUEST_TIMEOUT = 8000;
-  
-  try {
-    // Validate required data
-    if (!actionData.order || !actionData.roblox) {
-      return res.status(400).json({ 
-        error: 'Missing required action data',
-        required: ['order', 'roblox'],
-        received: {
-          hasOrder: !!actionData.order,
-          hasRoblox: !!actionData.roblox
-        }
-      });
-    }
-
-    if (!actionData.actionType) {
-      return res.status(400).json({
-        error: 'Missing actionType in action data'
-      });
-    }
-
-    // Validate actionType is one we recognize
-    const validActionTypes = [
-      'review_step_reached',
-      'trustpilot_review_clicked', 
-      'review_skipped',
-      'friend_request_sent',
-      'server_joined',
-      'delivery_completed'
-    ];
-    
-    if (!validActionTypes.includes(actionData.actionType)) {
-      console.warn(`Unknown action type: ${actionData.actionType}`);
-    }
-
-    // Add request metadata
-    actionData.userAgent = req.headers['user-agent'];
-    actionData.ipAddress = req.headers['x-forwarded-for'] || req.connection.remoteAddress;
-    
-    const firestorePromise = logUserActionToFirestore(actionData);
-    const timeoutPromise = new Promise((_, reject) => {
-      setTimeout(() => {
-        reject(new Error('Action logging operation timed out'));
-      }, REQUEST_TIMEOUT);
-    });
-    
-    let firestoreResult;
-    try {
-      firestoreResult = await Promise.race([firestorePromise, timeoutPromise]);
-    } catch (timeoutError) {
-      const elapsed = Date.now() - startTime;
-      const fallbackId = generateActionId();
-      
-      return res.status(202).json({
-        success: false,
-        message: 'Action received (saving in background)',
-        actionId: fallbackId,
-        warning: 'Save operation timed out but action was processed',
-        canContinue: true,
-        timing: elapsed,
-        status: 'timeout'
-      });
-    }
-    
-    const elapsed = Date.now() - startTime;
-    
-    const actionRecord = {
-      actionId: firestoreResult.actionId,
-      timestamp: new Date().toISOString(),
-      actionType: actionData.actionType,
-      actionDescription: firestoreResult.description,
-      actionDetails: actionData.actionDetails,
-      order: {
-        orderNumber: actionData.order.orderNumber,
-        email: actionData.order.email
-      },
-      roblox: {
-        username: actionData.roblox.username,
-        userId: actionData.roblox.userId
-      },
-      savedToFirestore: true,
-      firestoreId: firestoreResult.firestoreId,
-      docPath: firestoreResult.docPath,
-      timing: elapsed
-    };
-    
-    return res.status(200).json({
-      success: true,
-      message: `User action logged successfully: ${firestoreResult.description}`,
-      actionId: actionRecord.actionId,
-      data: actionRecord
-    });
-    
-  } catch (error) {
-    const elapsed = Date.now() - startTime;
-    console.error('User action logging failed:', error);
-    
-    return res.status(500).json({ 
-      error: 'Failed to log user action',
-      message: error.message,
-      timing: elapsed,
-      canContinue: true
-    });
-  }
-}
-
-// DELIVERY REGISTRATION HANDLER (unchanged but enhanced logging)
+// DELIVERY REGISTRATION HANDLER
 async function handleDeliveryRegistration(req, res, deliveryData) {
   const startTime = Date.now();
   const REQUEST_TIMEOUT = 8000;
@@ -429,7 +208,7 @@ async function handleDeliveryRegistration(req, res, deliveryData) {
   }
 }
 
-// SHOPIFY ORDER VERIFICATION (unchanged)
+// SHOPIFY ORDER VERIFICATION
 async function handleOrderVerification(req, res, orderNumber, email) {
   // Input validation
   if (!orderNumber || !email) {
@@ -504,7 +283,7 @@ async function handleOrderVerification(req, res, orderNumber, email) {
   }
 }
 
-// SHOPIFY SEARCH FUNCTION (unchanged)
+// SHOPIFY SEARCH FUNCTION
 async function findShopifyOrder(orderNumber, email) {
   const shopDomain = process.env.SHOPIFY_SHOP_DOMAIN;
   const accessToken = process.env.SHOPIFY_ACCESS_TOKEN;
@@ -789,13 +568,7 @@ function generateDeliveryId() {
   return `AG_${timestamp}_${random}`;
 }
 
-function generateActionId() {
-  const timestamp = Date.now();
-  const random = Math.random().toString(36).substr(2, 4).toUpperCase();
-  return `ACTION_${timestamp}_${random}`;
-}
-
-// MAIN HANDLER - Enhanced for Trustpilot review tracking
+// MAIN HANDLER - Simplified
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, GET, OPTIONS');
@@ -812,7 +585,7 @@ export default async function handler(req, res) {
   const startTime = Date.now();
 
   try {
-    const { orderNumber, email, username, action, deliveryData, actionData } = req.body;
+    const { orderNumber, email, username, action, deliveryData } = req.body;
 
     // Route requests based on action type
     if (action === 'verify_order' && orderNumber && email) {
@@ -825,11 +598,6 @@ export default async function handler(req, res) {
 
     if (action === 'register_delivery' && deliveryData) {
       return await handleDeliveryRegistration(req, res, deliveryData);
-    }
-
-    // Enhanced user action logging - now includes Trustpilot review actions
-    if (action === 'log_user_action' && actionData) {
-      return await handleUserActionLogging(req, res, actionData);
     }
 
     // Fallback detection for backward compatibility
@@ -848,10 +616,9 @@ export default async function handler(req, res) {
         email: !!email, 
         username: !!username, 
         action, 
-        hasDeliveryData: !!deliveryData,
-        hasActionData: !!actionData 
+        hasDeliveryData: !!deliveryData
       },
-      expected: 'Either (orderNumber + email) for order verification, (username) for Roblox verification, (deliveryData) for delivery registration, or (actionData) for action logging including Trustpilot reviews'
+      expected: 'Either (orderNumber + email) for order verification, (username) for Roblox verification, or (deliveryData) for delivery registration'
     });
 
   } catch (error) {
